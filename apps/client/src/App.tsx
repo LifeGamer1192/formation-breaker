@@ -89,27 +89,26 @@ function drawBattlefield(ctx: CanvasRenderingContext2D, world: WorldState, selec
       }); ctx.restore()
     }
 
+    // 隊の向きゾーン扇形（隊中心から、円状の弧で向きを表示＝移動指定時に見やすい）
+    ctx.save(); ctx.globalAlpha = isSelected ? 0.16 : 0.09
+    const ZONE_R = SQUAD_SPREAD * SCALE + 24
+    const arc = (a1: number, a2: number, c: string) => {
+      ctx.fillStyle = c; ctx.beginPath(); ctx.moveTo(px, py)
+      ctx.arc(px, py, ZONE_R, squad.facing + a1, squad.facing + a2); ctx.closePath(); ctx.fill()
+    }
+    arc(-Math.PI / 3,       Math.PI / 3,       '#44ff44')
+    arc( Math.PI / 3,       2 * Math.PI / 3,   '#ffff44')
+    arc(-2 * Math.PI / 3,  -Math.PI / 3,       '#ffff44')
+    arc( 2 * Math.PI / 3,   Math.PI,           '#ff4444')
+    arc(-Math.PI,          -2 * Math.PI / 3,   '#ff4444')
+    ctx.restore()
+
     // 隊中心のクロスヘア（移動指示の基点）
     ctx.save()
     ctx.strokeStyle = baseColor + (isSelected ? 'ee' : '55'); ctx.lineWidth = 1.5
     ctx.beginPath(); ctx.moveTo(px - 5, py); ctx.lineTo(px + 5, py)
     ctx.moveTo(px, py - 5); ctx.lineTo(px, py + 5); ctx.stroke()
     ctx.restore()
-
-    // 隊の向き矢印（隊中心から、移動指定時の向き把握用に残す）
-    ctx.save()
-    const sqArrowEnd = SQUAD_SPREAD * SCALE + 18
-    const sax = px + Math.cos(squad.facing) * sqArrowEnd
-    const say = py + Math.sin(squad.facing) * sqArrowEnd
-    ctx.strokeStyle = baseColor + (isSelected ? 'dd' : '88')
-    ctx.lineWidth = 2.5; ctx.setLineDash([4, 3])
-    ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(sax, say); ctx.stroke()
-    ctx.setLineDash([])
-    const shl = 8, sha = 0.4; ctx.fillStyle = baseColor + (isSelected ? 'dd' : '88')
-    ctx.beginPath(); ctx.moveTo(sax, say)
-    ctx.lineTo(sax - shl * Math.cos(squad.facing - sha), say - shl * Math.sin(squad.facing - sha))
-    ctx.lineTo(sax - shl * Math.cos(squad.facing + sha), say - shl * Math.sin(squad.facing + sha))
-    ctx.closePath(); ctx.fill(); ctx.restore()
 
     // 各生存兵士をアイコン + 向き三角形で描画
     aliveIds.forEach(unitId => {
@@ -587,7 +586,7 @@ export default function App() {
         <canvas ref={canvasRef} width={CW} height={CH} onClick={handleCanvasClick}
           style={{ width: '100%', borderRadius: 8, cursor: isReplay ? 'default' : selected ? 'crosshair' : 'pointer', display: 'block' }} />
         <div style={{ position: 'absolute', top: 5, right: 8, fontSize: 9, color: '#ffffff70', textAlign: 'right', lineHeight: 1.5 }}>
-          ╌► 隊の向き（移動指定用）<br />▲ 兵の向き / <span style={{ color: '#f77' }}>━ 兵の背面（弱点）</span>
+          隊の向き: 🟢正面 🟡側面 🔴背面<br />兵の向き: ▲ 正面 / <span style={{ color: '#f77' }}>━ 背面（弱点）</span>
         </div>
         <div style={{ position: 'absolute', bottom: 5, right: 8, display: 'flex', gap: 6, fontSize: 9, color: '#ffffff60' }}>
           {Object.entries(TERRAIN_COLOR).map(([k, c]) => (
