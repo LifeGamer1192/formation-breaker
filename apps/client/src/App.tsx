@@ -8,6 +8,7 @@ import type { GameState, RosterUnit, SquadSetup, BattleDef } from './game/types'
 import { getBattleDef } from './game/campaign'
 import { makeInitialGameState, resetAllUnits } from './game/army'
 import { saveGame } from './game/storage'
+import { C } from './ui/theme'
 
 // WorldState を GameState + BattleDef から動的生成
 function makeWorldFromSetup(gameState: GameState, battleDef: BattleDef): WorldState {
@@ -165,7 +166,7 @@ export default function App() {
   }
 
   return (
-    <div style={{ background: '#0a0a14', color: '#ddd', minHeight: '100vh', fontFamily: 'sans-serif' }}>
+    <div style={{ background: C.bg, color: C.text, minHeight: '100vh', fontFamily: 'sans-serif' }}>
       {screen === 'map' && (
         <MapScreen currentBattleIndex={gameState.battleIndex} onSelectBattle={handleSelectBattle} />
       )}
