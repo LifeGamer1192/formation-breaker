@@ -29,6 +29,7 @@ export interface UnitState {
 
 export interface SquadState {
   id:           SquadId
+  name:         string      // 表示用名称（例: 前衛・後衛）
   side:         Side
   unitIds:      UnitId[]
   formation:    FormationType
