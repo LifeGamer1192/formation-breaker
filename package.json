@@ -1,0 +1,13 @@
+{
+  "name": "formation-breaker",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=apps/client",
+    "build": "npm run build --workspace=apps/client",
+    "preview": "npm run preview --workspace=apps/client"
+  }
+}

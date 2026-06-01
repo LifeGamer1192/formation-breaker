@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+.env.local
+.env.*.local
+.DS_Store
+Thumbs.db
+*.local
+
+# ゲーム企画書・仕様書（非公開）
+FB_*.md
+*.spec.md
