@@ -1,5 +1,6 @@
 import type { LayerEffect } from './layers'
 import type { FormationType } from './formation'
+import type { Vec2, MovementType } from './geo'
 
 export type UnitId  = string
 export type SquadId = string
@@ -11,21 +12,32 @@ export interface UnitState {
   side:         Side
   hp:           number
   maxHp:        number
-  attack:       number      // 基礎攻撃力
-  defense:      number      // 基礎防御力
-  attackSpeed:  number      // 基礎攻撃速度（ゲージ充填量/tick）
-  gaugeMax:     number      // 基本100（仕様書「攻撃ゲージ基本1」= 100）
+  attack:       number
+  defense:      number
+  attackSpeed:  number
+  gaugeMax:     number
   gauge:        number
   alive:        boolean
-  isLeader:     boolean     // リーダースキルの適用条件に影響
-  skills:       LayerEffect[] // 固有スキルのレイヤー効果リスト
+  isLeader:     boolean
+  skills:       LayerEffect[]
+  // 仕様書 L94-95: 側面・背面防御補正（0 〜 -100%）
+  flankMod:     number
+  rearMod:      number
+  // PoC#3: 射程（仕様書L58: 100で戦場端〜端）
+  range:        number
 }
 
 export interface SquadState {
-  id:        SquadId
-  side:      Side
-  unitIds:   UnitId[]
-  formation: FormationType  // 陣形
+  id:           SquadId
+  side:         Side
+  unitIds:      UnitId[]
+  formation:    FormationType
+  // PoC#3: 位置・向き・移動
+  pos:          Vec2
+  facing:       number      // ラジアン（0=右, π=左）
+  moveQueue:    Vec2[]      // 移動予定地点（仕様書L146）
+  moveSpeed:    number      // 基礎移動速度（ゲーム単位/tick）
+  movementType: MovementType
 }
 
 export interface WorldState {
