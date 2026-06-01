@@ -1,4 +1,5 @@
 export * from './geo'
+export * from './command'
 export * from './fixed'
 export * from './prng'
 export * from './layers'
