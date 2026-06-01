@@ -3,7 +3,7 @@ import {
   mulberry32, tickCombat, tickMovement, getEffectiveStats,
   FORMATION_LABEL, FORMATION_DESC, DEMO_TERRAIN, dist,
   calcFacingZone, ZONE_LABEL, applyCommand,
-  buildUnitView,
+  buildUnitView, SQUAD_SPREAD,
 } from '@fb/sim-core'
 import type {
   WorldState, UnitState, SquadState, FormationType,
@@ -95,6 +95,21 @@ function drawBattlefield(ctx: CanvasRenderingContext2D, world: WorldState, selec
     ctx.beginPath(); ctx.moveTo(px - 5, py); ctx.lineTo(px + 5, py)
     ctx.moveTo(px, py - 5); ctx.lineTo(px, py + 5); ctx.stroke()
     ctx.restore()
+
+    // 隊の向き矢印（隊中心から、移動指定時の向き把握用に残す）
+    ctx.save()
+    const sqArrowEnd = SQUAD_SPREAD * SCALE + 18
+    const sax = px + Math.cos(squad.facing) * sqArrowEnd
+    const say = py + Math.sin(squad.facing) * sqArrowEnd
+    ctx.strokeStyle = baseColor + (isSelected ? 'dd' : '88')
+    ctx.lineWidth = 2.5; ctx.setLineDash([4, 3])
+    ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(sax, say); ctx.stroke()
+    ctx.setLineDash([])
+    const shl = 8, sha = 0.4; ctx.fillStyle = baseColor + (isSelected ? 'dd' : '88')
+    ctx.beginPath(); ctx.moveTo(sax, say)
+    ctx.lineTo(sax - shl * Math.cos(squad.facing - sha), say - shl * Math.sin(squad.facing - sha))
+    ctx.lineTo(sax - shl * Math.cos(squad.facing + sha), say - shl * Math.sin(squad.facing + sha))
+    ctx.closePath(); ctx.fill(); ctx.restore()
 
     // 各生存兵士をアイコン + 向き三角形で描画
     aliveIds.forEach(unitId => {
@@ -571,7 +586,9 @@ export default function App() {
       <div style={{ position: 'relative', marginBottom: 8 }}>
         <canvas ref={canvasRef} width={CW} height={CH} onClick={handleCanvasClick}
           style={{ width: '100%', borderRadius: 8, cursor: isReplay ? 'default' : selected ? 'crosshair' : 'pointer', display: 'block' }} />
-        <div style={{ position: 'absolute', top: 5, right: 8, fontSize: 9, color: '#ffffff60' }}>🟢正面 🟡側面 🔴背面</div>
+        <div style={{ position: 'absolute', top: 5, right: 8, fontSize: 9, color: '#ffffff70', textAlign: 'right', lineHeight: 1.5 }}>
+          ╌► 隊の向き（移動指定用）<br />▲ 兵の向き / <span style={{ color: '#f77' }}>━ 兵の背面（弱点）</span>
+        </div>
         <div style={{ position: 'absolute', bottom: 5, right: 8, display: 'flex', gap: 6, fontSize: 9, color: '#ffffff60' }}>
           {Object.entries(TERRAIN_COLOR).map(([k, c]) => (
             <span key={k}><span style={{ background: c, padding: '1px 4px', borderRadius: 2 }}>&nbsp;</span> {TERRAIN_LABEL[k as TerrainType]}</span>
