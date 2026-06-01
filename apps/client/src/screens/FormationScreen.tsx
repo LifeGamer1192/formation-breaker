@@ -2,17 +2,20 @@ import { useState } from 'react'
 import { FORMATION_LABEL } from '@fb/sim-core'
 import type { FormationType } from '@fb/sim-core'
 import type { RosterUnit, SquadSetup } from '../game/types'
+import { MERCENARY_COST } from '../game/army'
 import { C } from '../ui/theme'
 import { Button } from '../ui/Button'
 
 export interface FormationScreenProps {
   roster: RosterUnit[]
+  tokens: number
+  onHire: () => void
   onStart: (squads: SquadSetup[]) => void
 }
 
 const FORMATIONS: FormationType[] = ['none', 'horizontal', 'column', 'square', 'arrowhead', 'circle', 'solo']
 
-export function FormationScreen({ roster, onStart }: FormationScreenProps) {
+export function FormationScreen({ roster, tokens, onHire, onStart }: FormationScreenProps) {
   const [squads, setSquads] = useState<SquadSetup[]>([
     { id: 'squad-1', name: '前衛', unitIds: [], formation: 'horizontal' },
     { id: 'squad-2', name: '中衛', unitIds: [], formation: 'column' },
@@ -74,12 +77,30 @@ export function FormationScreen({ roster, onStart }: FormationScreenProps) {
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto', padding: '12px', minHeight: '100vh' }}>
-      <h1 style={{ fontSize: 18, marginBottom: 12 }}>⚔️ 隊編成</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <h1 style={{ fontSize: 18 }}>⚔️ 隊編成</h1>
+        <span style={{
+          background: C.card, borderRadius: 16, padding: '4px 12px',
+          fontSize: 13, fontWeight: 'bold', color: C.gold, border: `1px solid ${C.gold}44`
+        }}>
+          🪙 {tokens}
+        </span>
+      </div>
 
       <div style={{ display: 'flex', gap: 16, marginBottom: 12 }}>
         {/* 左: 所持兵士（ベンチ） */}
         <div style={{ flex: 1 }}>
-          <h2 style={{ fontSize: 14, color: C.warn, marginBottom: 8 }}>📋 兵士一覧</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <h2 style={{ fontSize: 14, color: C.warn }}>📋 兵士一覧</h2>
+            <Button
+              variant="accent"
+              disabled={tokens < MERCENARY_COST}
+              onClick={onHire}
+              style={{ fontSize: 11, padding: '4px 10px' }}
+            >
+              🪙 傭兵を雇う（{MERCENARY_COST}）
+            </Button>
+          </div>
           <div
             onDragOver={handleDragOver}
             onDrop={handleDropOnBench}

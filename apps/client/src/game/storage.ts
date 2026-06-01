@@ -15,7 +15,15 @@ export function loadGame(): GameState | null {
   try {
     const data = localStorage.getItem(STORAGE_KEY)
     if (!data) return null
-    return JSON.parse(data) as GameState
+    const parsed = JSON.parse(data) as Partial<GameState>
+    // マイグレーション: 旧セーブに無いフィールドを補完
+    return {
+      battleIndex: parsed.battleIndex ?? 0,
+      roster:      parsed.roster ?? [],
+      squads:      parsed.squads ?? [],
+      tokens:      parsed.tokens ?? 0,
+      log:         parsed.log ?? [],
+    }
   } catch (e) {
     console.error('Failed to load game:', e)
     return null

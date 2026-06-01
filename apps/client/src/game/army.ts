@@ -1,3 +1,4 @@
+import { mulberry32 } from '@fb/sim-core'
 import type { RosterUnit, GameState } from './types'
 
 // ─── 初期兵士ロスター（カルタゴ陣営）──────────────────────────────
@@ -193,6 +194,46 @@ export function makeInitialGameState(): GameState {
     battleIndex: 0,
     roster: makeInitialRoster(),
     squads: [],
+    tokens: 0,
     log: ['キャンペーン開始'],
+  }
+}
+
+// ─── トークン経済（Proto#3）───────────────────────────────────────
+export const PER_KILL_BONUS = 10
+export const MERCENARY_COST = 50
+
+// 勝利報酬 = 基礎報酬 + 撃破数 × ボーナス
+export function calcBattleReward(reward: number, killCount: number): number {
+  return reward + killCount * PER_KILL_BONUS
+}
+
+// 傭兵（ランダムな一般兵士）生成。Math.random 禁止のため mulberry32 を使用。
+const MERC_NAMES = ['ヌミディア騎兵', 'イベリア兵', 'ガリア傭兵', 'バレアレス投石兵', 'リビア槍兵']
+
+export function generateMercenary(seed: number): RosterUnit {
+  const rng = mulberry32(seed)
+  const pick = (min: number, max: number) => min + Math.floor(rng() * (max - min + 1))
+  const name = MERC_NAMES[pick(0, MERC_NAMES.length - 1)]
+  const hp = pick(60, 90)
+  return {
+    id: `merc_${seed}`,
+    name: `傭兵・${name}`,
+    side: 'ally',
+    hp,
+    maxHp: hp,
+    attack: pick(50, 75),
+    defense: pick(45, 70),
+    attackSpeed: Math.round((0.9 + rng() * 0.4) * 100) / 100,
+    gaugeMax: 100,
+    gauge: 0,
+    alive: true,
+    isLeader: false,
+    skills: [],
+    flankMod: -30,
+    rearMod: -50,
+    range: 20,
+    level: 1,
+    exp: 0,
   }
 }

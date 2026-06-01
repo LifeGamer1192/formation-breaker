@@ -31,6 +31,7 @@ export const BATTLE_0: BattleDef = {
   name: '初陣の平原',
   allyStartX: 10,
   enemyStartX: 80,
+  reward: 30,
   enemies: {
     units: [
       makeEnemyUnit('enemy_0_0', '敵兵士A', { hp: 70, maxHp: 70, attack: 55, defense: 50 }),
@@ -53,6 +54,7 @@ export const BATTLE_1: BattleDef = {
   name: '森の伏兵',
   allyStartX: 10,
   enemyStartX: 80,
+  reward: 50,
   enemies: {
     units: [
       makeEnemyUnit('enemy_1_0', '敵兵士A', { hp: 75, maxHp: 75, attack: 62, defense: 56 }),
@@ -83,6 +85,7 @@ export const BATTLE_2: BattleDef = {
   name: '要塞の攻防',
   allyStartX: 10,
   enemyStartX: 80,
+  reward: 80,
   enemies: {
     units: [
       makeEnemyUnit('enemy_2_0', '敵兵士A', { hp: 85, maxHp: 85, attack: 70, defense: 65 }),

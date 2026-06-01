@@ -1,21 +1,25 @@
 import type { WorldState } from '@fb/sim-core'
 import type { RosterUnit } from '../game/types'
-import { applyLevelUps, awardXp } from '../game/army'
+import { applyLevelUps, awardXp, calcBattleReward } from '../game/army'
 import { C } from '../ui/theme'
 import { Button } from '../ui/Button'
 
 export interface ResultScreenProps {
   world: WorldState
   roster: RosterUnit[]
-  onContinue: (updatedRoster: RosterUnit[]) => void
+  reward: number
+  onContinue: (updatedRoster: RosterUnit[], earnedTokens: number) => void
   onRetry: () => void
 }
 
-export function ResultScreen({ world, roster, onContinue, onRetry }: ResultScreenProps) {
+export function ResultScreen({ world, roster, reward, onContinue, onRetry }: ResultScreenProps) {
   const won = world.winner === 'ally'
   const participantIds = world.squads.filter(s => s.side === 'ally').flatMap(s => s.unitIds)
   const killCount = Object.values(world.units)
     .filter(u => !u.alive && u.side === 'enemy').length
+
+  // 勝利時のみトークン獲得
+  const earnedTokens = won ? calcBattleReward(reward, killCount) : 0
 
   // XP 付与 → レベルアップ処理
   const withXp = awardXp(roster, participantIds, killCount)
@@ -41,6 +45,17 @@ export function ResultScreen({ world, roster, onContinue, onRetry }: ResultScree
           <div>味方生存数: {Object.values(world.units).filter(u => u.side === 'ally' && u.alive).length}</div>
           <div>敵撃破数: {killCount}</div>
         </div>
+        {won && (
+          <div style={{
+            marginTop: 8, paddingTop: 8, borderTop: '1px solid #333',
+            fontSize: 14, fontWeight: 'bold', color: C.gold
+          }}>
+            🪙 +{earnedTokens} トークン獲得！
+            <span style={{ fontSize: 10, color: C.sub, marginLeft: 6 }}>
+              (基礎{reward} + 撃破{killCount}×10)
+            </span>
+          </div>
+        )}
       </div>
 
       {/* 兵士別 XP・レベルアップ表示 */}
@@ -92,7 +107,7 @@ export function ResultScreen({ world, roster, onContinue, onRetry }: ResultScree
         {!won ? (
           <Button variant="default" onClick={onRetry}>↩ もう一度</Button>
         ) : (
-          <Button variant="accent" onClick={() => onContinue(withLevelUp)}>▶ 次へ進む</Button>
+          <Button variant="accent" onClick={() => onContinue(withLevelUp, earnedTokens)}>▶ 次へ進む</Button>
         )}
       </div>
     </div>

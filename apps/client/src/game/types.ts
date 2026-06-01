@@ -24,6 +24,7 @@ export interface BattleDef {
   }
   allyStartX:   number    // 味方初期X座標
   enemyStartX:  number    // 敵初期X座標
+  reward:       number    // 勝利時の基礎報酬トークン
 }
 
 // ─── ゲームステート（persistence 対象）──────────────────────────
@@ -31,6 +32,7 @@ export interface GameState {
   battleIndex: number         // 0〜2（現在のキャンペーン進捗）
   roster:      RosterUnit[]   // 所持兵士一覧
   squads:      SquadSetup[]   // 現在の編成（最大5隊）
+  tokens:      number         // 所持トークン（戦闘報酬で増え、傭兵購入で減る）
   log:         string[]       // キャンペーンログ
 }
 
