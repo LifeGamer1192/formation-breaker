@@ -60,7 +60,23 @@ function drawBattlefield(ctx: CanvasRenderingContext2D, world: WorldState, selec
     ctx.strokeRect(ci * TILE_PX, ri * TILE_PX, TILE_PX, TILE_PX)
   }))
 
+  // 陣形ドットパターン [lx=右方向, ly=前方向] (正規化済み、SQUAD_R でスケール)
+  // 仕様書 L20-28 の各陣形を可視化
+  const FORMATION_DOTS: Record<FormationType, [number, number][]> = {
+    none:       [],
+    solo:       [[0, 0]],
+    horizontal: [[-0.52, 0], [0, 0], [0.52, 0]],                                          // 横一列
+    column:     [[0, 0.52], [0, 0], [0, -0.52]],                                           // 縦一列
+    square:     [[-0.33, 0.33], [0.33, 0.33], [-0.33, -0.33], [0.33, -0.33]],             // 2×2
+    circle:     [[0, 0.52], [0.45, 0.26], [0.45, -0.26], [0, -0.52], [-0.45, -0.26], [-0.45, 0.26]], // 6点環
+    arrowhead:  [[0, 0.52], [-0.42, -0.28], [0, 0], [0.42, -0.28]],                       // V字前尖
+  }
+
   for (const squad of world.squads) {
+    // 全ユニット離脱済みの隊は駒を描画しない
+    const anyAlive = squad.unitIds.some(id => world.units[id]?.alive)
+    if (!anyAlive) continue
+
     const px = gx(squad.pos.x), py = gy(squad.pos.y)
     const isAlly = squad.side === 'ally'
     const isFront = squad.name === '前衛'
@@ -91,7 +107,7 @@ function drawBattlefield(ctx: CanvasRenderingContext2D, world: WorldState, selec
 
     // 射程ライン
     for (const other of world.squads) {
-      if (other.side === squad.side) continue
+      if (other.side === squad.side || !other.unitIds.some(id => world.units[id]?.alive)) continue
       const maxRange = Math.max(...squad.unitIds.map(id => world.units[id]?.range ?? 10))
       if (dist(squad.pos, other.pos) <= maxRange + 2) {
         ctx.save(); ctx.strokeStyle = '#ffcc0044'; ctx.lineWidth = 1; ctx.setLineDash([2, 3])
@@ -99,27 +115,36 @@ function drawBattlefield(ctx: CanvasRenderingContext2D, world: WorldState, selec
       }
     }
 
-    // 隊アイコン
+    // 隊アイコン（円）
     ctx.beginPath(); ctx.arc(px, py, SQUAD_R, 0, 2 * Math.PI)
     ctx.fillStyle = isSelected ? '#ffffffcc' : baseColor + 'cc'
     ctx.strokeStyle = isSelected ? '#fff' : baseColor; ctx.lineWidth = isSelected ? 3 : 2
     ctx.fill(); ctx.stroke()
 
+    // 陣形ドット（局所座標 → スクリーン変換して描画）
+    // 変換: lx=右, ly=前 → dx = -lx*sinF + ly*cosF, dy = lx*cosF + ly*sinF
+    const sinF = Math.sin(squad.facing), cosF = Math.cos(squad.facing)
+    const dotSpread = SQUAD_R * 0.48
+    const dots = FORMATION_DOTS[squad.formation] ?? []
+    dots.forEach(([lx, ly]) => {
+      const dx = (-sinF * lx + cosF * ly) * dotSpread
+      const dy = ( cosF * lx + sinF * ly) * dotSpread
+      ctx.beginPath()
+      ctx.arc(px + dx, py + dy, 2.8, 0, 2 * Math.PI)
+      ctx.fillStyle = isSelected ? '#0009' : '#fff'
+      ctx.fill()
+    })
+
     // 向き矢印
     const arrowLen = SQUAD_R + 14
     const ax = px + Math.cos(squad.facing) * arrowLen, ay = py + Math.sin(squad.facing) * arrowLen
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2
+    ctx.strokeStyle = isSelected ? '#0009' : '#fff8'; ctx.lineWidth = 1.5
     ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(ax, ay); ctx.stroke()
-    const hl = 7, ha = 0.45; ctx.fillStyle = '#fff'; ctx.beginPath()
+    const hl = 6, ha = 0.45; ctx.fillStyle = isSelected ? '#0009' : '#fff8'; ctx.beginPath()
     ctx.moveTo(ax, ay)
     ctx.lineTo(ax - hl * Math.cos(squad.facing - ha), ay - hl * Math.sin(squad.facing - ha))
     ctx.lineTo(ax - hl * Math.cos(squad.facing + ha), ay - hl * Math.sin(squad.facing + ha))
     ctx.closePath(); ctx.fill()
-
-    // ラベル
-    ctx.fillStyle = isSelected ? '#000' : '#fff'
-    ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText((isAlly ? '味' : '敵') + squad.name[0], px, py)
   }
 
   // リプレイ中オーバーレイ
@@ -183,12 +208,22 @@ function SquadCard({ squad, units, color, selected, onSelect, onFormation, isRep
   const terrain = DEMO_TERRAIN
     [Math.min(5, Math.max(0, Math.floor(squad.pos.y / 10)))]
     [Math.min(9, Math.max(0, Math.floor(squad.pos.x / 10)))]
+  const allDead = !squad.unitIds.some(id => units[id]?.alive)
   return (
-    <div onClick={onSelect} style={{
+    <div onClick={!allDead ? onSelect : undefined} style={{
       background: selected ? '#0a0a28' : '#0d0d1a',
-      border: `1px solid ${selected ? color : color + '44'}`,
-      borderRadius: 8, padding: 10, marginBottom: 6, cursor: isReplay ? 'default' : 'pointer',
+      border: `1px solid ${allDead ? '#444' : selected ? color : color + '44'}`,
+      borderRadius: 8, padding: 10, marginBottom: 6,
+      cursor: allDead || isReplay ? 'default' : 'pointer',
+      opacity: allDead ? 0.55 : 1,
     }}>
+      {/* 全滅バナー */}
+      {allDead && (
+        <div style={{
+          textAlign: 'center', padding: '2px 0 6px', fontSize: 12,
+          color: '#888', letterSpacing: 2,
+        }}>💀 全滅 — 駒を消去</div>
+      )}
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
         <span style={{ fontWeight: 'bold', color, fontSize: 12 }}>
           {squad.name} {selected && !isReplay && <span style={{ fontSize: 9, color: '#fff' }}>◀ 選択中</span>}

@@ -55,6 +55,13 @@ function tickSquad(squad: SquadState, allSquads: SquadState[]): SquadState {
 }
 
 export function tickMovement(world: WorldState): WorldState {
-  const { squads } = world
-  return { ...world, squads: squads.map(s => tickSquad(s, squads)) }
+  return {
+    ...world,
+    squads: world.squads.map(s => {
+      // 全ユニット離脱済みの隊は移動しない
+      const anyAlive = s.unitIds.some(id => world.units[id]?.alive)
+      if (!anyAlive) return s
+      return tickSquad(s, world.squads)
+    }),
+  }
 }
