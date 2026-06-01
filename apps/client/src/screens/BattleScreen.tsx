@@ -499,7 +499,7 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd }: BattleScr
     <div style={{ maxWidth: 720, margin: '0 auto', padding: '12px', minHeight: '100vh' }}>
       <h1 style={{ fontSize: 17, marginBottom: 2 }}>
         Formation Breaker
-        <span style={{ fontSize: 10, color: '#888', marginLeft: 8 }}>Proto#1 - {battleDef.name}</span>
+        <span style={{ fontSize: 10, color: '#888', marginLeft: 8 }}>Proto#2 - {battleDef.name}</span>
       </h1>
       <div style={{ fontSize: 11, color: '#666', marginBottom: 8 }}>
         Tick:{world.tick} | {(world.tick/20).toFixed(1)}s
