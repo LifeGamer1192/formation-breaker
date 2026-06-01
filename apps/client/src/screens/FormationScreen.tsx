@@ -11,11 +11,13 @@ export interface FormationScreenProps {
   tokens: number
   onHire: () => void
   onStart: (squads: SquadSetup[]) => void
+  onSaveGhost: (squads: SquadSetup[]) => void
 }
 
 const FORMATIONS: FormationType[] = ['none', 'horizontal', 'column', 'square', 'arrowhead', 'circle', 'solo']
 
-export function FormationScreen({ roster, tokens, onHire, onStart }: FormationScreenProps) {
+export function FormationScreen({ roster, tokens, onHire, onStart, onSaveGhost }: FormationScreenProps) {
+  const [ghostSaved, setGhostSaved] = useState(false)
   const [squads, setSquads] = useState<SquadSetup[]>([
     { id: 'squad-1', name: '前衛', unitIds: [], formation: 'horizontal' },
     { id: 'squad-2', name: '中衛', unitIds: [], formation: 'column' },
@@ -241,10 +243,19 @@ export function FormationScreen({ roster, tokens, onHire, onStart }: FormationSc
       )}
 
       {/* スタートボタン */}
-      <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 12 }}>
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center', marginTop: 12 }}>
         <Button variant="accent" disabled={!canStart} onClick={() => onStart(squads)}>
           ▶ 戦闘開始
         </Button>
+        <Button
+          variant="default"
+          disabled={!canStart}
+          onClick={() => { onSaveGhost(squads); setGhostSaved(true) }}
+          style={{ fontSize: 12 }}
+        >
+          👻 ゴースト登録
+        </Button>
+        {ghostSaved && <span style={{ fontSize: 11, color: C.green }}>✅ 登録しました</span>}
       </div>
 
       <div style={{ fontSize: 10, color: C.sub, textAlign: 'center', marginTop: 12 }}>

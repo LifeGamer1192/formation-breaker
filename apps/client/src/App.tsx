@@ -4,9 +4,11 @@ import { MapScreen } from './screens/MapScreen'
 import { FormationScreen } from './screens/FormationScreen'
 import { BattleScreen } from './screens/BattleScreen'
 import { ResultScreen } from './screens/ResultScreen'
-import type { GameState, RosterUnit, SquadSetup, BattleDef } from './game/types'
+import { GhostScreen } from './screens/GhostScreen'
+import type { GameState, RosterUnit, SquadSetup, BattleDef, Ghost } from './game/types'
 import { getBattleDef } from './game/campaign'
 import { makeInitialGameState, resetAllUnits, generateMercenary, MERCENARY_COST } from './game/army'
+import { makeGhostFromSquads, ghostToBattleDef, saveGhost } from './game/ghost'
 import { saveGame } from './game/storage'
 import { C } from './ui/theme'
 
@@ -105,21 +107,38 @@ function makeWorldFromSetup(gameState: GameState, battleDef: BattleDef): WorldSt
   }
 }
 
-type Screen = 'map' | 'formation' | 'battle' | 'result'
+type Screen = 'map' | 'formation' | 'battle' | 'result' | 'ghost'
 
 export default function App() {
   const [gameState, setGameState] = useState<GameState>(() => makeInitialGameState())
   const [screen, setScreen] = useState<Screen>('map')
   const [world, setWorld] = useState<WorldState | null>(null)
   const [battleDef, setBattleDef] = useState<BattleDef | null>(null)
+  const [matchType, setMatchType] = useState<'campaign' | 'ghost'>('campaign')
 
   // 各画面遷移
   const handleSelectBattle = (idx: number) => {
+    setMatchType('campaign')
     const battle = getBattleDef(idx)
     const world0 = makeWorldFromSetup(gameState, battle)
     setWorld(world0)
     setBattleDef(battle)
     setScreen('formation')
+  }
+
+  // ─── ゴーストPvP ─────────────────────────────────────────────
+  const handleOpenGhost = () => setScreen('ghost')
+
+  const handleChallengeGhost = (ghost: Ghost) => {
+    setMatchType('ghost')
+    const bd = ghostToBattleDef(ghost)
+    setBattleDef(bd)
+    setWorld(makeWorldFromSetup(gameState, bd))
+    setScreen('formation')
+  }
+
+  const handleSaveGhost = (squads: SquadSetup[]) => {
+    saveGhost(makeGhostFromSquads(squads, gameState.roster))
   }
 
   const handleStartBattle = (squads: SquadSetup[]) => {
@@ -140,16 +159,18 @@ export default function App() {
   }
 
   const handleResultContinue = (updatedRoster: RosterUnit[], earnedTokens: number) => {
+    // ゴースト対戦は campaign 進捗（battleIndex）を進めない
+    const isGhost = matchType === 'ghost'
     const newGameState: GameState = {
       ...gameState,
       roster: updatedRoster,
       tokens: gameState.tokens + earnedTokens,
-      battleIndex: gameState.battleIndex + 1,
+      battleIndex: isGhost ? gameState.battleIndex : gameState.battleIndex + 1,
       squads: [],
     }
     setGameState(newGameState)
     saveGame(newGameState)
-    setScreen('map')
+    setScreen(isGhost ? 'ghost' : 'map')
   }
 
   // 傭兵を雇う（トークン消費 → ランダム一般兵をロスターに追加）
@@ -184,7 +205,14 @@ export default function App() {
   return (
     <div style={{ background: C.bg, color: C.text, minHeight: '100vh', fontFamily: 'sans-serif' }}>
       {screen === 'map' && (
-        <MapScreen currentBattleIndex={gameState.battleIndex} onSelectBattle={handleSelectBattle} />
+        <MapScreen
+          currentBattleIndex={gameState.battleIndex}
+          onSelectBattle={handleSelectBattle}
+          onOpenGhost={handleOpenGhost}
+        />
+      )}
+      {screen === 'ghost' && (
+        <GhostScreen onChallenge={handleChallengeGhost} onBack={() => setScreen('map')} />
       )}
       {screen === 'formation' && (
         <FormationScreen
@@ -192,6 +220,7 @@ export default function App() {
           tokens={gameState.tokens}
           onHire={handleHire}
           onStart={handleStartBattle}
+          onSaveGhost={handleSaveGhost}
         />
       )}
       {screen === 'battle' && world && battleDef && (

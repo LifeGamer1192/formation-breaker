@@ -5,9 +5,10 @@ import { Button } from '../ui/Button'
 export interface MapScreenProps {
   currentBattleIndex: number
   onSelectBattle: (index: number) => void
+  onOpenGhost: () => void
 }
 
-export function MapScreen({ currentBattleIndex, onSelectBattle }: MapScreenProps) {
+export function MapScreen({ currentBattleIndex, onSelectBattle, onOpenGhost }: MapScreenProps) {
   const total = CAMPAIGN.length
   const progress = Math.min(100, Math.round((currentBattleIndex / total) * 100))
 
@@ -81,6 +82,13 @@ export function MapScreen({ currentBattleIndex, onSelectBattle }: MapScreenProps
           🎉 全キャンペーン完了！
         </div>
       )}
+
+      {/* ゴースト対戦への導線 */}
+      <div style={{ display: 'flex', justifyContent: 'center', marginTop: 32 }}>
+        <Button variant="default" onClick={onOpenGhost} style={{ fontSize: 13 }}>
+          👻 ゴースト対戦へ
+        </Button>
+      </div>
     </div>
   )
 }

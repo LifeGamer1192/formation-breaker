@@ -36,6 +36,15 @@ export interface GameState {
   log:         string[]       // キャンペーンログ
 }
 
+// ─── ゴースト（非同期PvP用の軍スナップショット）─────────────────
+export interface Ghost {
+  id:        string          // 'g_'+Date.now()
+  name:      string          // 例: 'ハンニバルの軍'
+  createdAt: number
+  squads:    SquadSetup[]
+  roster:    RosterUnit[]    // squads が参照する兵士のみ
+}
+
 // ─── 戦闘結果（ResultScreen に渡す）───────────────────────────────
 export interface BattleResult {
   won:        boolean
