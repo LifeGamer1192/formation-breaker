@@ -11,6 +11,8 @@ import type {
 } from '@fb/sim-core'
 import type { BattleDef } from '../game/types'
 
+interface DmgFloat { id: string; x: number; y: number; dmg: number; age: number; side: 'ally'|'enemy' }
+
 const SCALE   = 6
 const CW      = 600
 const CH      = 360
@@ -27,7 +29,7 @@ const TERRAIN_LABEL: Record<TerrainType, string> = {
 const gx = (x: number) => x * SCALE
 const gy = (y: number) => y * SCALE
 
-function drawBattlefield(ctx: CanvasRenderingContext2D, world: WorldState, selectedId: string | null, isReplay: boolean) {
+function drawBattlefield(ctx: CanvasRenderingContext2D, world: WorldState, selectedId: string | null, isReplay: boolean, damageFloats: DmgFloat[]) {
   ctx.clearRect(0, 0, CW, CH)
 
   DEMO_TERRAIN.forEach((row, ri) => row.forEach((terrain, ci) => {
@@ -60,7 +62,7 @@ function drawBattlefield(ctx: CanvasRenderingContext2D, world: WorldState, selec
       }); ctx.restore()
     }
 
-    ctx.save(); ctx.globalAlpha = isSelected ? 0.16 : 0.09
+    ctx.save(); ctx.globalAlpha = isSelected ? 0.25 : 0.12
     const ZONE_R = SQUAD_SPREAD * SCALE + 24
     const arc = (a1: number, a2: number, c: string) => {
       ctx.fillStyle = c; ctx.beginPath(); ctx.moveTo(px, py)
@@ -140,6 +142,19 @@ function drawBattlefield(ctx: CanvasRenderingContext2D, world: WorldState, selec
       ctx.fillText(`${isAlly ? '味' : '敵'}${squad.name}`, px, py - 4)
     }
   }
+
+  // ダメージフロート描画
+  damageFloats.forEach(f => {
+    const alpha = Math.max(0, 1 - f.age / 20)
+    const yOff = f.age * 0.4
+    ctx.save()
+    ctx.globalAlpha = alpha
+    ctx.fillStyle = f.side === 'ally' ? '#ffff55' : '#ff5555'
+    ctx.font = 'bold 12px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.fillText(`-${f.dmg}`, gx(f.x) + 4, gy(f.y) - yOff)
+    ctx.restore()
+  })
 
   if (isReplay) {
     ctx.fillStyle = '#ff880044'; ctx.fillRect(0, 0, CW, 22)
@@ -279,6 +294,7 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd }: BattleScr
   const [selected, setSelected] = useState<string | null>(null)
   const [mode,     setMode]     = useState<'live' | 'replaying' | 'replay-done'>('live')
   const [matchMsg, setMatchMsg] = useState('')
+  const [damageFloats, setDamageFloats] = useState<DmgFloat[]>([])
   const canvasRef    = useRef<HTMLCanvasElement>(null)
   const rngRef       = useRef(mulberry32(SEED))
   const replayRngRef = useRef(mulberry32(SEED))
@@ -286,11 +302,43 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd }: BattleScr
   const cmdsRef      = useRef<Command[]>([])
   const replayRef    = useRef<ReplayData | null>(null)
   const liveResultRef= useRef<WorldState | null>(null)
+  const prevWorldRef = useRef<WorldState>(initialWorld)
 
   useEffect(() => {
     const ctx = canvasRef.current?.getContext('2d')
-    if (ctx) drawBattlefield(ctx, world, mode === 'live' ? selected : null, mode === 'replaying')
-  }, [world, selected, mode])
+    if (ctx) drawBattlefield(ctx, world, mode === 'live' ? selected : null, mode === 'replaying', damageFloats)
+  }, [world, selected, mode, damageFloats])
+
+  // ダメージフロート検出・更新
+  useEffect(() => {
+    if (mode !== 'live') return
+
+    const view = buildUnitView(world)
+    const newFloats: DmgFloat[] = []
+    const damagedIds = new Set<string>()
+
+    // 前フレームとの HP 差分を検出
+    for (const id of Object.keys(world.units)) {
+      const prevUnit = prevWorldRef.current.units[id]
+      const currUnit = world.units[id]
+      if (prevUnit && currUnit) {
+        const dmg = prevUnit.hp - currUnit.hp
+        if (dmg > 0) {
+          const pos = view.get(id)?.pos
+          if (pos) {
+            newFloats.push({ id: id + world.tick, x: pos.x, y: pos.y, dmg, age: 0, side: currUnit.side })
+            damagedIds.add(id)
+          }
+        }
+      }
+    }
+
+    // 既存フロートの年齢をインクリメント
+    const aged = damageFloats.map(f => ({ ...f, age: f.age + 1 })).filter(f => f.age < 25)
+    setDamageFloats([...aged, ...newFloats])
+
+    prevWorldRef.current = world
+  }, [world, mode, damageFloats])
 
   useEffect(() => {
     if (world.finished && mode === 'live' && !replayRef.current) {
