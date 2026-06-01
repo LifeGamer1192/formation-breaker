@@ -1,32 +1,19 @@
 import type { WorldState, SquadState, Side } from './types'
 import type { Prng } from './prng'
-import type { Vec2 } from './geo'
 import { dist } from './geo'
 import { getEffectiveStats } from './stats'
 import { calcFacingZone, ZONE_LABEL } from './facing'
-import { getUnitPos } from './formation'
+import { buildUnitView } from './view'
 
 function findSquad(world: WorldState, unitId: string): SquadState {
   return world.squads.find(s => s.unitIds.includes(unitId))!
 }
 
-/** tick開始時の全生存ユニットの実座標を一括計算（tick中は不変） */
-function buildPosMap(world: WorldState): Map<string, Vec2> {
-  const map = new Map<string, Vec2>()
-  for (const squad of world.squads) {
-    const aliveIds = squad.unitIds.filter(id => world.units[id]?.alive)
-    aliveIds.forEach((id, idx) =>
-      map.set(id, getUnitPos(squad.pos, squad.facing, squad.formation, idx))
-    )
-  }
-  return map
-}
-
 export function tickCombat(world: WorldState, rng: Prng): WorldState {
   if (world.finished) return world
 
-  // tick開始時の位置マップ（兵士単位）
-  const posMap = buildPosMap(world)
+  // tick開始時の兵士単位の位置・向きを確定（tick中は不変）
+  const view = buildUnitView(world)
 
   const units: WorldState['units'] = {}
   for (const [k, v] of Object.entries(world.units)) units[k] = { ...v }
@@ -45,8 +32,9 @@ export function tickCombat(world: WorldState, rng: Prng): WorldState {
   for (const unit of Object.values(units)) {
     if (!unit.alive || units[unit.id].gauge < unit.gaugeMax) continue
 
-    const attackerPos = posMap.get(unit.id)
-    if (!attackerPos) continue
+    const attView = view.get(unit.id)
+    if (!attView) continue
+    const attackerPos = attView.pos
 
     const attSquad = findSquad(world, unit.id)
     const attEff   = getEffectiveStats(unit, attSquad)
@@ -54,18 +42,19 @@ export function tickCombat(world: WorldState, rng: Prng): WorldState {
     // 射程内の生存敵兵士（兵士単位の距離判定）
     const enemies = Object.values(units).filter(u => {
       if (!u.alive || u.side === unit.side) return false
-      const tpos = posMap.get(u.id)
-      return tpos !== undefined && dist(attackerPos, tpos) <= unit.range
+      const tv = view.get(u.id)
+      return tv !== undefined && dist(attackerPos, tv.pos) <= unit.range
     })
     if (enemies.length === 0) continue
 
     const target    = enemies[Math.floor(rng() * enemies.length)]
-    const targetPos = posMap.get(target.id)!
+    const targetView= view.get(target.id)!
+    const targetPos = targetView.pos
     const defSquad  = findSquad(world, target.id)
     const defEff    = getEffectiveStats(target, defSquad)
 
-    // 向き判定（兵士単位の実座標 + 隊の向きで判定）
-    const zone      = calcFacingZone(attackerPos, targetPos, defSquad.facing)
+    // 向き判定（攻撃側の兵士座標 vs 守備側の兵士座標・守備兵士自身の向き）
+    const zone      = calcFacingZone(attackerPos, targetPos, targetView.facing)
     const facingMod = zone === 'front' ? 0
                     : zone === 'flank' ? (target.flankMod ?? -30)
                     :                    (target.rearMod  ?? -50)

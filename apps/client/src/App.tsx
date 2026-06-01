@@ -3,7 +3,7 @@ import {
   mulberry32, tickCombat, tickMovement, getEffectiveStats,
   FORMATION_LABEL, FORMATION_DESC, DEMO_TERRAIN, dist,
   calcFacingZone, ZONE_LABEL, applyCommand,
-  getUnitPos, SQUAD_SPREAD,
+  buildUnitView,
 } from '@fb/sim-core'
 import type {
   WorldState, UnitState, SquadState, FormationType,
@@ -64,6 +64,9 @@ function drawBattlefield(ctx: CanvasRenderingContext2D, world: WorldState, selec
     ctx.strokeRect(ci * TILE_PX, ri * TILE_PX, TILE_PX, TILE_PX)
   }))
 
+  // 兵士単位の位置・向きを一括計算（combat と同じロジック）
+  const view = buildUnitView(world)
+
   for (const squad of world.squads) {
     const aliveIds = squad.unitIds.filter(id => world.units[id]?.alive)
     if (aliveIds.length === 0) continue  // 全滅隊は描画しない
@@ -86,46 +89,49 @@ function drawBattlefield(ctx: CanvasRenderingContext2D, world: WorldState, selec
       }); ctx.restore()
     }
 
-    // 向きゾーン扇形（隊中心から、薄く）
-    ctx.save(); ctx.globalAlpha = 0.09
-    const ZONE_R = SQUAD_SPREAD * SCALE + 24
-    const arc = (a1: number, a2: number, c: string) => {
-      ctx.fillStyle = c; ctx.beginPath(); ctx.moveTo(px, py)
-      ctx.arc(px, py, ZONE_R, squad.facing + a1, squad.facing + a2); ctx.closePath(); ctx.fill()
-    }
-    arc(-Math.PI / 3,       Math.PI / 3,       '#44ff44')
-    arc( Math.PI / 3,       2 * Math.PI / 3,   '#ffff44')
-    arc(-2 * Math.PI / 3,  -Math.PI / 3,       '#ffff44')
-    arc( 2 * Math.PI / 3,   Math.PI,           '#ff4444')
-    arc(-Math.PI,          -2 * Math.PI / 3,   '#ff4444')
-    ctx.restore()
-
     // 隊中心のクロスヘア（移動指示の基点）
     ctx.save()
-    ctx.strokeStyle = baseColor + (isSelected ? 'ee' : '66'); ctx.lineWidth = 1.5
+    ctx.strokeStyle = baseColor + (isSelected ? 'ee' : '55'); ctx.lineWidth = 1.5
     ctx.beginPath(); ctx.moveTo(px - 5, py); ctx.lineTo(px + 5, py)
     ctx.moveTo(px, py - 5); ctx.lineTo(px, py + 5); ctx.stroke()
     ctx.restore()
 
-    // 向き矢印（隊中心から）
-    const arrowEnd = SQUAD_SPREAD * SCALE + 16
-    const ax = px + Math.cos(squad.facing) * arrowEnd
-    const ay = py + Math.sin(squad.facing) * arrowEnd
-    ctx.save()
-    ctx.strokeStyle = baseColor + (isSelected ? 'cc' : '77'); ctx.lineWidth = 1.5
-    ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(ax, ay); ctx.stroke()
-    const hl = 6, ha = 0.45; ctx.fillStyle = baseColor + (isSelected ? 'cc' : '77')
-    ctx.beginPath(); ctx.moveTo(ax, ay)
-    ctx.lineTo(ax - hl * Math.cos(squad.facing - ha), ay - hl * Math.sin(squad.facing - ha))
-    ctx.lineTo(ax - hl * Math.cos(squad.facing + ha), ay - hl * Math.sin(squad.facing + ha))
-    ctx.closePath(); ctx.fill(); ctx.restore()
+    // 各生存兵士をアイコン + 向き三角形で描画
+    aliveIds.forEach(unitId => {
+      const unit   = world.units[unitId]
+      const uv     = view.get(unitId)
+      if (!uv) return
+      const ux     = gx(uv.pos.x), uy = gy(uv.pos.y)
+      const facing = uv.facing            // ← 兵士個別の向き（最寄り敵方向）
+      const hpPct  = Math.max(0, unit.hp / unit.maxHp)
 
-    // 各生存兵士をアイコンで描画
-    aliveIds.forEach((unitId, idx) => {
-      const unit  = world.units[unitId]
-      const upos  = getUnitPos(squad.pos, squad.facing, squad.formation, idx)
-      const ux    = gx(upos.x), uy = gy(upos.y)
-      const hpPct = Math.max(0, unit.hp / unit.maxHp)
+      // 向き三角形（兵士の前方を示す：正面のとんがり）
+      ctx.save()
+      const noseLen = UNIT_R + 7, baseW = 0.55
+      const nx = ux + Math.cos(facing) * noseLen
+      const ny = uy + Math.sin(facing) * noseLen
+      ctx.beginPath()
+      ctx.moveTo(nx, ny)
+      ctx.lineTo(ux + Math.cos(facing + Math.PI / 2) * UNIT_R * baseW,
+                 uy + Math.sin(facing + Math.PI / 2) * UNIT_R * baseW)
+      ctx.lineTo(ux + Math.cos(facing - Math.PI / 2) * UNIT_R * baseW,
+                 uy + Math.sin(facing - Math.PI / 2) * UNIT_R * baseW)
+      ctx.closePath()
+      ctx.fillStyle = '#ffffffdd'
+      ctx.fill()
+      ctx.restore()
+
+      // 背面マーカー（背後の小さな赤線：背面が弱点であることを示す）
+      ctx.save()
+      ctx.strokeStyle = '#ff3333aa'; ctx.lineWidth = 2
+      const back = facing + Math.PI
+      ctx.beginPath()
+      ctx.moveTo(ux + Math.cos(back) * (UNIT_R - 1) + Math.cos(back + Math.PI / 2) * UNIT_R * 0.5,
+                 uy + Math.sin(back) * (UNIT_R - 1) + Math.sin(back + Math.PI / 2) * UNIT_R * 0.5)
+      ctx.lineTo(ux + Math.cos(back) * (UNIT_R - 1) + Math.cos(back - Math.PI / 2) * UNIT_R * 0.5,
+                 uy + Math.sin(back) * (UNIT_R - 1) + Math.sin(back - Math.PI / 2) * UNIT_R * 0.5)
+      ctx.stroke()
+      ctx.restore()
 
       // 選択中の隊の兵士: 外枠リング
       if (isSelected) {
@@ -146,7 +152,7 @@ function drawBattlefield(ctx: CanvasRenderingContext2D, world: WorldState, selec
       }
 
       // HP バー（兵士アイコン下）
-      const barW = 14, barH = 2, barX = ux - barW / 2, barY = uy + UNIT_R + 2
+      const barW = 14, barH = 2, barX = ux - barW / 2, barY = uy + UNIT_R + 3
       ctx.fillStyle = '#333'; ctx.fillRect(barX, barY, barW, barH)
       ctx.fillStyle = hpPct > 0.5 ? '#4d4' : hpPct > 0.25 ? '#fa0' : '#f44'
       ctx.fillRect(barX, barY, barW * hpPct, barH)
@@ -434,14 +440,15 @@ export default function App() {
       y: (e.clientY - rect.top)  * (CH / rect.height) / SCALE,
     }
 
-    // 兵士アイコン上をクリック → その兵士の隊を選択
+    // 兵士アイコン上をクリック → その兵士の隊を選択（描画と同じ位置で判定）
     const CLICK_R = UNIT_R / SCALE + 1.5  // ゲーム単位でのクリック判定半径
+    const clickView = buildUnitView(world)
     let clickedSquad: SquadState | undefined
     outer: for (const squad of world.squads) {
       const aliveIds = squad.unitIds.filter(id => world.units[id]?.alive)
-      for (let i = 0; i < aliveIds.length; i++) {
-        const upos = getUnitPos(squad.pos, squad.facing, squad.formation, i)
-        if (dist(upos, clickGx) <= CLICK_R) { clickedSquad = squad; break outer }
+      for (const id of aliveIds) {
+        const uv = clickView.get(id)
+        if (uv && dist(uv.pos, clickGx) <= CLICK_R) { clickedSquad = squad; break outer }
       }
       // 隊中心付近もクリック可（移動キュー設定用）
       if (dist(squad.pos, clickGx) <= SQUAD_R / SCALE) { clickedSquad = squad; break }
@@ -467,11 +474,27 @@ export default function App() {
   const hasReplay   = replayRef.current !== null
   const cmdCount    = cmdsRef.current.length
 
-  const facingInfos = world.squads.flatMap(s =>
-    world.squads.filter(o => o.side !== s.side && dist(s.pos, o.pos) < 20).map(o => ({
-      atk: s.name, def: o.name, zone: calcFacingZone(s.pos, o.pos, o.facing), side: s.side,
-    }))
-  ).slice(0, 2)
+  // 交戦中の兵士ペアの向き判定を概況表示（兵士単位）
+  const hudView = buildUnitView(world)
+  const facingInfos: { atk: string; def: string; zone: ReturnType<typeof calcFacingZone>; side: string }[] = []
+  for (const sq of world.squads) {
+    for (const id of sq.unitIds) {
+      const av = hudView.get(id); if (!av) continue
+      for (const o of world.squads) {
+        if (o.side === sq.side) continue
+        for (const tid of o.unitIds) {
+          const tv = hudView.get(tid); if (!tv) continue
+          if (dist(av.pos, tv.pos) <= (world.units[id].range)) {
+            facingInfos.push({
+              atk: world.units[id].name, def: world.units[tid].name,
+              zone: calcFacingZone(av.pos, tv.pos, tv.facing), side: sq.side,
+            })
+          }
+        }
+      }
+    }
+  }
+  const facingHud = facingInfos.slice(0, 2)
 
   return (
     <div style={{ maxWidth: 720, margin: '0 auto', padding: '12px', minHeight: '100vh' }}>
@@ -483,7 +506,7 @@ export default function App() {
       <div style={{ fontSize: 11, color: '#666', marginBottom: 8 }}>
         seed:{SEED} | Tick:{world.tick} | {(world.tick/20).toFixed(1)}s
         {' | '}<span style={{ color: '#fa0' }}>⏺ REC: {cmdCount}コマンド記録済</span>
-        {facingInfos.map((fi, i) => (
+        {facingHud.map((fi, i) => (
           <span key={i} style={{ marginLeft: 8, color: fi.side === 'ally' ? '#7af' : '#f74' }}>
             {fi.atk}→{fi.def}:{ZONE_LABEL[fi.zone]}
           </span>
