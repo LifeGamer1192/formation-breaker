@@ -1,4 +1,7 @@
 export * from './fixed'
 export * from './prng'
+export * from './layers'
+export * from './formation'
 export * from './types'
+export * from './stats'
 export * from './combat'
