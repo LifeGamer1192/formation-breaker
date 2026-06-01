@@ -1,22 +1,39 @@
 import type { WorldState, SquadState, Side } from './types'
 import type { Prng } from './prng'
+import type { Vec2 } from './geo'
+import { dist } from './geo'
 import { getEffectiveStats } from './stats'
 import { calcFacingZone, ZONE_LABEL } from './facing'
-import { dist } from './geo'
+import { getUnitPos } from './formation'
 
 function findSquad(world: WorldState, unitId: string): SquadState {
   return world.squads.find(s => s.unitIds.includes(unitId))!
 }
 
+/** tick開始時の全生存ユニットの実座標を一括計算（tick中は不変） */
+function buildPosMap(world: WorldState): Map<string, Vec2> {
+  const map = new Map<string, Vec2>()
+  for (const squad of world.squads) {
+    const aliveIds = squad.unitIds.filter(id => world.units[id]?.alive)
+    aliveIds.forEach((id, idx) =>
+      map.set(id, getUnitPos(squad.pos, squad.facing, squad.formation, idx))
+    )
+  }
+  return map
+}
+
 export function tickCombat(world: WorldState, rng: Prng): WorldState {
   if (world.finished) return world
+
+  // tick開始時の位置マップ（兵士単位）
+  const posMap = buildPosMap(world)
 
   const units: WorldState['units'] = {}
   for (const [k, v] of Object.entries(world.units)) units[k] = { ...v }
 
   const newLog: string[] = []
 
-  // ① ゲージ充填（実効 attackSpeed を使用）
+  // ① 攻撃ゲージ充填（実効 attackSpeed を使用）
   for (const unit of Object.values(units)) {
     if (!unit.alive) continue
     const squad = findSquad(world, unit.id)
@@ -24,31 +41,35 @@ export function tickCombat(world: WorldState, rng: Prng): WorldState {
     units[unit.id].gauge += eff.attackSpeed
   }
 
-  // ② 攻撃（ゲージ満タン + 射程内の敵）
+  // ② ゲージ満タン → 兵士単位で射程内の敵兵士を攻撃
   for (const unit of Object.values(units)) {
     if (!unit.alive || units[unit.id].gauge < unit.gaugeMax) continue
 
-    const attSquad  = findSquad(world, unit.id)
-    const attEff    = getEffectiveStats(unit, attSquad)
+    const attackerPos = posMap.get(unit.id)
+    if (!attackerPos) continue
 
-    // 射程内の生存敵を探す（仕様書L58: range単位で判定）
+    const attSquad = findSquad(world, unit.id)
+    const attEff   = getEffectiveStats(unit, attSquad)
+
+    // 射程内の生存敵兵士（兵士単位の距離判定）
     const enemies = Object.values(units).filter(u => {
       if (!u.alive || u.side === unit.side) return false
-      const defSquad = findSquad(world, u.id)
-      return dist(attSquad.pos, defSquad.pos) <= unit.range
+      const tpos = posMap.get(u.id)
+      return tpos !== undefined && dist(attackerPos, tpos) <= unit.range
     })
     if (enemies.length === 0) continue
 
-    const target   = enemies[Math.floor(rng() * enemies.length)]
-    const defSquad = findSquad(world, target.id)
-    const defEff   = getEffectiveStats(target, defSquad)
+    const target    = enemies[Math.floor(rng() * enemies.length)]
+    const targetPos = posMap.get(target.id)!
+    const defSquad  = findSquad(world, target.id)
+    const defEff    = getEffectiveStats(target, defSquad)
 
-    // 向き判定（仕様書L152, L94-95）
-    const zone     = calcFacingZone(attSquad.pos, defSquad.pos, defSquad.facing)
+    // 向き判定（兵士単位の実座標 + 隊の向きで判定）
+    const zone      = calcFacingZone(attackerPos, targetPos, defSquad.facing)
     const facingMod = zone === 'front' ? 0
                     : zone === 'flank' ? (target.flankMod ?? -30)
                     :                    (target.rearMod  ?? -50)
-    const adjDef   = Math.max(0, Math.round(defEff.defense * (1 + facingMod / 100)))
+    const adjDef    = Math.max(0, Math.round(defEff.defense * (1 + facingMod / 100)))
 
     // ダメージ = max(1, 実効ATK - 向き補正後DEF)
     const dmg   = Math.max(1, attEff.attack - adjDef)

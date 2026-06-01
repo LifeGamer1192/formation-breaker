@@ -3,6 +3,7 @@ import {
   mulberry32, tickCombat, tickMovement, getEffectiveStats,
   FORMATION_LABEL, FORMATION_DESC, DEMO_TERRAIN, dist,
   calcFacingZone, ZONE_LABEL, applyCommand,
+  getUnitPos, SQUAD_SPREAD,
 } from '@fb/sim-core'
 import type {
   WorldState, UnitState, SquadState, FormationType,
@@ -15,7 +16,8 @@ const SCALE   = 6
 const CW      = 600
 const CH      = 360
 const TILE_PX = 60
-const SQUAD_R = 18
+const UNIT_R  = 9   // 兵士アイコン半径 (px)
+const SQUAD_R = 22  // 隊クリック判定半径 (px, 使われる場所のみ)
 
 const TERRAIN_COLOR: Record<TerrainType, string> = {
   plain: '#4a7a30', forest: '#1e5010', mountain: '#7a7060', desert: '#b8922a', swamp: '#3a5a3a',
@@ -53,6 +55,8 @@ function makeWorld(): WorldState {
 // ─── キャンバス描画 ─────────────────────────────────────────────────────────
 function drawBattlefield(ctx: CanvasRenderingContext2D, world: WorldState, selectedId: string | null, isReplay: boolean) {
   ctx.clearRect(0, 0, CW, CH)
+
+  // 地形タイル
   DEMO_TERRAIN.forEach((row, ri) => row.forEach((terrain, ci) => {
     ctx.fillStyle = TERRAIN_COLOR[terrain]
     ctx.fillRect(ci * TILE_PX, ri * TILE_PX, TILE_PX, TILE_PX)
@@ -60,32 +64,19 @@ function drawBattlefield(ctx: CanvasRenderingContext2D, world: WorldState, selec
     ctx.strokeRect(ci * TILE_PX, ri * TILE_PX, TILE_PX, TILE_PX)
   }))
 
-  // 陣形ドットパターン [lx=右方向, ly=前方向] (正規化済み、SQUAD_R でスケール)
-  // 仕様書 L20-28 の各陣形を可視化
-  const FORMATION_DOTS: Record<FormationType, [number, number][]> = {
-    none:       [],
-    solo:       [[0, 0]],
-    horizontal: [[-0.52, 0], [0, 0], [0.52, 0]],                                          // 横一列
-    column:     [[0, 0.52], [0, 0], [0, -0.52]],                                           // 縦一列
-    square:     [[-0.33, 0.33], [0.33, 0.33], [-0.33, -0.33], [0.33, -0.33]],             // 2×2
-    circle:     [[0, 0.52], [0.45, 0.26], [0.45, -0.26], [0, -0.52], [-0.45, -0.26], [-0.45, 0.26]], // 6点環
-    arrowhead:  [[0, 0.52], [-0.42, -0.28], [0, 0], [0.42, -0.28]],                       // V字前尖
-  }
-
   for (const squad of world.squads) {
-    // 全ユニット離脱済みの隊は駒を描画しない
-    const anyAlive = squad.unitIds.some(id => world.units[id]?.alive)
-    if (!anyAlive) continue
+    const aliveIds = squad.unitIds.filter(id => world.units[id]?.alive)
+    if (aliveIds.length === 0) continue  // 全滅隊は描画しない
 
     const px = gx(squad.pos.x), py = gy(squad.pos.y)
-    const isAlly = squad.side === 'ally'
-    const isFront = squad.name === '前衛'
+    const isAlly    = squad.side === 'ally'
+    const isFront   = squad.name === '前衛'
     const baseColor = isAlly ? (isFront ? '#48aaff' : '#88ccff') : (isFront ? '#ff6644' : '#ff9977')
     const isSelected = squad.id === selectedId
 
-    // 移動予定ライン
+    // 移動予定ライン（隊中心から、常時薄表示）
     if (squad.moveQueue.length > 0) {
-      ctx.save(); ctx.strokeStyle = baseColor + '99'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4])
+      ctx.save(); ctx.strokeStyle = baseColor + '88'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4])
       ctx.beginPath(); ctx.moveTo(px, py)
       squad.moveQueue.forEach(wp => ctx.lineTo(gx(wp.x), gy(wp.y))); ctx.stroke()
       squad.moveQueue.forEach(wp => {
@@ -95,62 +86,83 @@ function drawBattlefield(ctx: CanvasRenderingContext2D, world: WorldState, selec
       }); ctx.restore()
     }
 
-    // 向きゾーン扇形
-    ctx.save(); ctx.globalAlpha = 0.12
+    // 向きゾーン扇形（隊中心から、薄く）
+    ctx.save(); ctx.globalAlpha = 0.09
+    const ZONE_R = SQUAD_SPREAD * SCALE + 24
     const arc = (a1: number, a2: number, c: string) => {
       ctx.fillStyle = c; ctx.beginPath(); ctx.moveTo(px, py)
-      ctx.arc(px, py, SQUAD_R + 18, squad.facing + a1, squad.facing + a2); ctx.closePath(); ctx.fill()
+      ctx.arc(px, py, ZONE_R, squad.facing + a1, squad.facing + a2); ctx.closePath(); ctx.fill()
     }
-    arc(-Math.PI / 3, Math.PI / 3, '#44ff44'); arc(Math.PI / 3, 2 * Math.PI / 3, '#ffff44')
-    arc(-2 * Math.PI / 3, -Math.PI / 3, '#ffff44'); arc(2 * Math.PI / 3, Math.PI, '#ff4444')
-    arc(-Math.PI, -2 * Math.PI / 3, '#ff4444'); ctx.restore()
+    arc(-Math.PI / 3,       Math.PI / 3,       '#44ff44')
+    arc( Math.PI / 3,       2 * Math.PI / 3,   '#ffff44')
+    arc(-2 * Math.PI / 3,  -Math.PI / 3,       '#ffff44')
+    arc( 2 * Math.PI / 3,   Math.PI,           '#ff4444')
+    arc(-Math.PI,          -2 * Math.PI / 3,   '#ff4444')
+    ctx.restore()
 
-    // 射程ライン
-    for (const other of world.squads) {
-      if (other.side === squad.side || !other.unitIds.some(id => world.units[id]?.alive)) continue
-      const maxRange = Math.max(...squad.unitIds.map(id => world.units[id]?.range ?? 10))
-      if (dist(squad.pos, other.pos) <= maxRange + 2) {
-        ctx.save(); ctx.strokeStyle = '#ffcc0044'; ctx.lineWidth = 1; ctx.setLineDash([2, 3])
-        ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(gx(other.pos.x), gy(other.pos.y)); ctx.stroke(); ctx.restore()
-      }
-    }
+    // 隊中心のクロスヘア（移動指示の基点）
+    ctx.save()
+    ctx.strokeStyle = baseColor + (isSelected ? 'ee' : '66'); ctx.lineWidth = 1.5
+    ctx.beginPath(); ctx.moveTo(px - 5, py); ctx.lineTo(px + 5, py)
+    ctx.moveTo(px, py - 5); ctx.lineTo(px, py + 5); ctx.stroke()
+    ctx.restore()
 
-    // 隊アイコン（円）
-    ctx.beginPath(); ctx.arc(px, py, SQUAD_R, 0, 2 * Math.PI)
-    ctx.fillStyle = isSelected ? '#ffffffcc' : baseColor + 'cc'
-    ctx.strokeStyle = isSelected ? '#fff' : baseColor; ctx.lineWidth = isSelected ? 3 : 2
-    ctx.fill(); ctx.stroke()
-
-    // 陣形ドット（局所座標 → スクリーン変換して描画）
-    // 変換: lx=右, ly=前 → dx = -lx*sinF + ly*cosF, dy = lx*cosF + ly*sinF
-    const sinF = Math.sin(squad.facing), cosF = Math.cos(squad.facing)
-    const dotSpread = SQUAD_R * 0.48
-    const dots = FORMATION_DOTS[squad.formation] ?? []
-    dots.forEach(([lx, ly]) => {
-      const dx = (-sinF * lx + cosF * ly) * dotSpread
-      const dy = ( cosF * lx + sinF * ly) * dotSpread
-      ctx.beginPath()
-      ctx.arc(px + dx, py + dy, 2.8, 0, 2 * Math.PI)
-      ctx.fillStyle = isSelected ? '#0009' : '#fff'
-      ctx.fill()
-    })
-
-    // 向き矢印
-    const arrowLen = SQUAD_R + 14
-    const ax = px + Math.cos(squad.facing) * arrowLen, ay = py + Math.sin(squad.facing) * arrowLen
-    ctx.strokeStyle = isSelected ? '#0009' : '#fff8'; ctx.lineWidth = 1.5
+    // 向き矢印（隊中心から）
+    const arrowEnd = SQUAD_SPREAD * SCALE + 16
+    const ax = px + Math.cos(squad.facing) * arrowEnd
+    const ay = py + Math.sin(squad.facing) * arrowEnd
+    ctx.save()
+    ctx.strokeStyle = baseColor + (isSelected ? 'cc' : '77'); ctx.lineWidth = 1.5
     ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(ax, ay); ctx.stroke()
-    const hl = 6, ha = 0.45; ctx.fillStyle = isSelected ? '#0009' : '#fff8'; ctx.beginPath()
-    ctx.moveTo(ax, ay)
+    const hl = 6, ha = 0.45; ctx.fillStyle = baseColor + (isSelected ? 'cc' : '77')
+    ctx.beginPath(); ctx.moveTo(ax, ay)
     ctx.lineTo(ax - hl * Math.cos(squad.facing - ha), ay - hl * Math.sin(squad.facing - ha))
     ctx.lineTo(ax - hl * Math.cos(squad.facing + ha), ay - hl * Math.sin(squad.facing + ha))
-    ctx.closePath(); ctx.fill()
+    ctx.closePath(); ctx.fill(); ctx.restore()
+
+    // 各生存兵士をアイコンで描画
+    aliveIds.forEach((unitId, idx) => {
+      const unit  = world.units[unitId]
+      const upos  = getUnitPos(squad.pos, squad.facing, squad.formation, idx)
+      const ux    = gx(upos.x), uy = gy(upos.y)
+      const hpPct = Math.max(0, unit.hp / unit.maxHp)
+
+      // 選択中の隊の兵士: 外枠リング
+      if (isSelected) {
+        ctx.beginPath(); ctx.arc(ux, uy, UNIT_R + 3, 0, 2 * Math.PI)
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke()
+      }
+
+      // 兵士アイコン本体
+      ctx.beginPath(); ctx.arc(ux, uy, UNIT_R, 0, 2 * Math.PI)
+      ctx.fillStyle   = baseColor + Math.round(100 + hpPct * 155).toString(16).padStart(2, '0')
+      ctx.strokeStyle = baseColor; ctx.lineWidth = 1.5
+      ctx.fill(); ctx.stroke()
+
+      // リーダー表示（金色ドット）
+      if (unit.isLeader) {
+        ctx.beginPath(); ctx.arc(ux, uy - UNIT_R - 3, 3, 0, 2 * Math.PI)
+        ctx.fillStyle = '#ffdd00'; ctx.fill()
+      }
+
+      // HP バー（兵士アイコン下）
+      const barW = 14, barH = 2, barX = ux - barW / 2, barY = uy + UNIT_R + 2
+      ctx.fillStyle = '#333'; ctx.fillRect(barX, barY, barW, barH)
+      ctx.fillStyle = hpPct > 0.5 ? '#4d4' : hpPct > 0.25 ? '#fa0' : '#f44'
+      ctx.fillRect(barX, barY, barW * hpPct, barH)
+    })
+
+    // 隊名ラベル（選択中のみ表示、中心付近）
+    if (isSelected) {
+      ctx.fillStyle = baseColor; ctx.font = 'bold 9px sans-serif'
+      ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'
+      ctx.fillText(`${isAlly ? '味' : '敵'}${squad.name}`, px, py - 4)
+    }
   }
 
   // リプレイ中オーバーレイ
   if (isReplay) {
-    ctx.fillStyle = '#ff880044'
-    ctx.fillRect(0, 0, CW, 22)
+    ctx.fillStyle = '#ff880044'; ctx.fillRect(0, 0, CW, 22)
     ctx.fillStyle = '#ffaa00'; ctx.font = 'bold 12px sans-serif'
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
     ctx.fillText('⏪ REPLAY', CW / 2, 11)
@@ -376,7 +388,7 @@ export default function App() {
       }
       setWorld(prev => {
         // この tick に対応するコマンドを適用
-        const cmds = replay.commands.filter(c => c.tick === t)
+        const cmds = replay.commands.filter((c: Command) => c.tick === t)
         let w = prev
         for (const cmd of cmds) w = applyCommand(w, cmd)
         w = tickMovement(w)
@@ -422,8 +434,19 @@ export default function App() {
       y: (e.clientY - rect.top)  * (CH / rect.height) / SCALE,
     }
 
-    const clicked = world.squads.find(s => dist(s.pos, clickGx) <= SQUAD_R / SCALE + 1.5)
-    if (clicked) { setSelected(prev => prev === clicked.id ? null : clicked.id); return }
+    // 兵士アイコン上をクリック → その兵士の隊を選択
+    const CLICK_R = UNIT_R / SCALE + 1.5  // ゲーム単位でのクリック判定半径
+    let clickedSquad: SquadState | undefined
+    outer: for (const squad of world.squads) {
+      const aliveIds = squad.unitIds.filter(id => world.units[id]?.alive)
+      for (let i = 0; i < aliveIds.length; i++) {
+        const upos = getUnitPos(squad.pos, squad.facing, squad.formation, i)
+        if (dist(upos, clickGx) <= CLICK_R) { clickedSquad = squad; break outer }
+      }
+      // 隊中心付近もクリック可（移動キュー設定用）
+      if (dist(squad.pos, clickGx) <= SQUAD_R / SCALE) { clickedSquad = squad; break }
+    }
+    if (clickedSquad) { setSelected(prev => prev === clickedSquad!.id ? null : clickedSquad!.id); return }
 
     if (selected) {
       setWorld(prev => {

@@ -2,6 +2,7 @@
 // 移動速度効果は PoC#3（移動実装）のスコープ
 
 import type { LayerEffect } from './layers'
+import type { Vec2 } from './geo'
 
 export type FormationType =
   | 'none'       // 陣形なし（デフォルト）
@@ -65,4 +66,39 @@ export const FORMATION_EFFECTS: Record<FormationType, LayerEffect[]> = {
     { layer: 'formation', target: 'defense', op: 'mul', value: -10, priority: 0 },
     // moveSpeed +20% → PoC#3
   ]),
+}
+
+// ─── 隊内配置スロット（兵士の実際の位置） ────────────────────────────────
+// 局所座標 [lx=右方向, ly=前方向]（正規化済み、× SQUAD_SPREAD でゲーム単位）
+// slot[0] = リーダー位置、以降は兵士位置（unitIds の生存者順）
+
+export const SQUAD_SPREAD = 5  // ゲーム単位（隊中心から各兵士までの基準距離）
+
+export const FORMATION_SLOTS: Record<FormationType, [number, number][]> = {
+  none:       [[0, 0],        [-0.5, 0.5],  [0.5, 0.5],   [0, -0.5],     [-0.5, -0.5],  [0.5, -0.5]],
+  solo:       [[0, 0]],
+  horizontal: [[0, 0],        [-0.9, 0],    [0.9, 0],     [-1.8, 0],     [1.8, 0],      [0, 0.7]],
+  column:     [[0, 0.9],      [0, 0],       [0, -0.9],    [0, -1.8],     [0.5, 0.45],   [-0.5, 0.45]],
+  square:     [[-0.55, 0.55], [0.55, 0.55], [-0.55,-0.55],[0.55,-0.55],  [0, 0],        [0, 1.1]],
+  circle:     [[0, 0.9],      [0.78, 0.45], [0.78,-0.45], [0, -0.9],     [-0.78,-0.45], [-0.78, 0.45]],
+  arrowhead:  [[0, 0.9],      [-0.7, 0],    [0.7, 0],     [-1.4,-0.9],   [1.4,-0.9],    [0, -0.3]],
+}
+
+/**
+ * 隊内の生存ユニットの絶対位置を返す。
+ * unitIndex: その隊の生存ユニット列での順序（0=リーダーまたは先頭）
+ */
+export function getUnitPos(
+  squadPos:    Vec2,
+  squadFacing: number,
+  formation:   FormationType,
+  unitIndex:   number,
+): Vec2 {
+  const slots = FORMATION_SLOTS[formation] ?? [[0, 0]]
+  const [lx, ly] = slots[unitIndex % slots.length]
+  const sinF = Math.sin(squadFacing), cosF = Math.cos(squadFacing)
+  return {
+    x: squadPos.x + (-sinF * lx + cosF * ly) * SQUAD_SPREAD,
+    y: squadPos.y + ( cosF * lx + sinF * ly) * SQUAD_SPREAD,
+  }
 }
