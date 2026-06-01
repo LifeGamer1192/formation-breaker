@@ -1,5 +1,6 @@
 import { mulberry32 } from '@fb/sim-core'
-import type { RosterUnit, GameState } from './types'
+import type { FormationType } from '@fb/sim-core'
+import type { RosterUnit, GameState, SquadSetup } from './types'
 
 // ─── 初期兵士ロスター（カルタゴ陣営）──────────────────────────────
 export function makeInitialRoster(): RosterUnit[] {
@@ -236,4 +237,41 @@ export function generateMercenary(seed: number): RosterUnit {
     level: 1,
     exp: 0,
   }
+}
+
+// ─── オート編成（roster を各隊に自動配分）─────────────────────────
+// リーダーを各隊の先頭（=隊長）に置き、残りを戦力順でラウンドロビン配分する。
+// squadDefs の id/name/formation は維持し、unitIds のみ再割当する。
+export function autoArrange(
+  roster: RosterUnit[],
+  squadDefs: { id: string; name: string; formation: FormationType }[],
+): SquadSetup[] {
+  const MAX_PER_SQUAD = 5
+  const power = (u: RosterUnit) => u.attack + u.defense + u.maxHp
+  const leaders = roster.filter(u => u.isLeader).sort((a, b) => power(b) - power(a))
+  const others = roster.filter(u => !u.isLeader).sort((a, b) => power(b) - power(a))
+
+  const squads: SquadSetup[] = squadDefs.map(d => ({ ...d, unitIds: [] as string[] }))
+
+  // ① 各隊の先頭にリーダーを配置
+  leaders.slice(0, squads.length).forEach((l, i) => squads[i].unitIds.push(l.id))
+
+  // ② 余ったリーダー + 一般兵を戦力順でラウンドロビン配分（各隊最大5名）
+  const pool = [...leaders.slice(squads.length), ...others]
+  let cursor = 0
+  for (const u of pool) {
+    let placed = false
+    for (let k = 0; k < squads.length; k++) {
+      const idx = (cursor + k) % squads.length
+      if (squads[idx].unitIds.length < MAX_PER_SQUAD) {
+        squads[idx].unitIds.push(u.id)
+        cursor = idx + 1
+        placed = true
+        break
+      }
+    }
+    if (!placed) break // 全隊満員
+  }
+
+  return squads
 }

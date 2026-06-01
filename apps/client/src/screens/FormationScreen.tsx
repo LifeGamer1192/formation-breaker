@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { FORMATION_LABEL } from '@fb/sim-core'
 import type { FormationType } from '@fb/sim-core'
 import type { RosterUnit, SquadSetup } from '../game/types'
-import { MERCENARY_COST } from '../game/army'
+import { MERCENARY_COST, autoArrange } from '../game/army'
 import { C } from '../ui/theme'
 import { Button } from '../ui/Button'
 
@@ -75,12 +75,22 @@ export function FormationScreen({ roster, tokens, onHire, onStart, onSaveGhost }
     setSquads(prev => prev.map(s => s.id === squadId ? { ...s, formation: f } : s))
   }
 
+  // オート編成: 現在の隊定義（id/name/formation）を維持して unitIds を再割当
+  const handleAuto = () => {
+    setSquads(prev => autoArrange(roster, prev.map(s => ({ id: s.id, name: s.name, formation: s.formation }))))
+  }
+
   const canStart = squads.some(s => s.unitIds.length > 0)
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto', padding: '12px', minHeight: '100vh' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <h1 style={{ fontSize: 18 }}>⚔️ 隊編成</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <h1 style={{ fontSize: 18 }}>⚔️ 隊編成</h1>
+          <Button variant="accent" onClick={handleAuto} style={{ fontSize: 12, padding: '5px 12px' }}>
+            🎲 オート編成
+          </Button>
+        </div>
         <span style={{
           background: C.card, borderRadius: 16, padding: '4px 12px',
           fontSize: 13, fontWeight: 'bold', color: C.gold, border: `1px solid ${C.gold}44`
