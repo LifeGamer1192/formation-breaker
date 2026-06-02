@@ -8,6 +8,7 @@ export interface MapScreenProps {
   frontier: string[]
   onSelectNode: (nodeId: string) => void
   onOpenGhost: () => void
+  onOpenImport: () => void
 }
 
 type NodeState = 'cleared' | 'available' | 'locked'
@@ -20,7 +21,7 @@ const PAD_Y = 30
 const cx = (n: MapNode) => PAD_X + n.col * COL_W + 70
 const cy = (n: MapNode) => PAD_Y + n.row * ROW_H + 36
 
-export function MapScreen({ clearedNodes, frontier, onSelectNode, onOpenGhost }: MapScreenProps) {
+export function MapScreen({ clearedNodes, frontier, onSelectNode, onOpenGhost, onOpenImport }: MapScreenProps) {
   const nodes = Object.values(MAP_NODES)
   const total = nodes.length
   const stateOf = (id: string): NodeState =>
@@ -98,9 +99,12 @@ export function MapScreen({ clearedNodes, frontier, onSelectNode, onOpenGhost }:
         </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'center', marginTop: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 24 }}>
         <Button variant="default" onClick={onOpenGhost} style={{ fontSize: 13 }}>
           👻 ゴースト対戦へ
+        </Button>
+        <Button variant="default" onClick={onOpenImport} style={{ fontSize: 13 }}>
+          📥 局地戦インポート
         </Button>
       </div>
     </div>

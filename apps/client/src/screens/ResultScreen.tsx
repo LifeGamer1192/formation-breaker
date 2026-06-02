@@ -8,18 +8,19 @@ export interface ResultScreenProps {
   world: WorldState
   roster: RosterUnit[]
   reward: number
+  scenario?: boolean   // α9: 局地戦（XP/トークンなし・インポートへ戻る）
   onContinue: (updatedRoster: RosterUnit[], earnedTokens: number) => void
   onRetry: () => void
 }
 
-export function ResultScreen({ world, roster, reward, onContinue, onRetry }: ResultScreenProps) {
+export function ResultScreen({ world, roster, reward, scenario, onContinue, onRetry }: ResultScreenProps) {
   const won = world.winner === 'ally'
   const participantIds = world.squads.filter(s => s.side === 'ally').flatMap(s => s.unitIds)
   const killCount = Object.values(world.units)
     .filter(u => !u.alive && u.side === 'enemy').length
 
-  // 勝利時のみトークン獲得
-  const earnedTokens = won ? calcBattleReward(reward, killCount) : 0
+  // 局地戦は報酬・成長なし
+  const earnedTokens = !scenario && won ? calcBattleReward(reward, killCount) : 0
 
   // XP 付与 → レベルアップ処理
   const withXp = awardXp(roster, participantIds, killCount, won)
@@ -45,7 +46,7 @@ export function ResultScreen({ world, roster, reward, onContinue, onRetry }: Res
           <div>味方生存数: {Object.values(world.units).filter(u => u.side === 'ally' && u.alive).length}</div>
           <div>敵撃破数: {killCount}</div>
         </div>
-        {won && (
+        {won && !scenario && (
           <div style={{
             marginTop: 8, paddingTop: 8, borderTop: '1px solid #333',
             fontSize: 14, fontWeight: 'bold', color: C.gold
@@ -56,9 +57,15 @@ export function ResultScreen({ world, roster, reward, onContinue, onRetry }: Res
             </span>
           </div>
         )}
+        {scenario && (
+          <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #333', fontSize: 11, color: C.sub }}>
+            📥 局地戦（シナリオ検証）— 成長・報酬は反映されません
+          </div>
+        )}
       </div>
 
-      {/* 兵士別 XP・レベルアップ表示 */}
+      {/* 兵士別 XP・レベルアップ表示（局地戦では非表示） */}
+      {!scenario && (
       <div style={{ background: C.panel, borderRadius: 8, padding: 12, marginBottom: 12 }}>
         <div style={{ fontSize: 13, fontWeight: 'bold', color: C.warn, marginBottom: 10 }}>
           🎯 経験値・成長
@@ -101,10 +108,13 @@ export function ResultScreen({ world, roster, reward, onContinue, onRetry }: Res
           )
         })}
       </div>
+      )}
 
       {/* 次へボタン */}
       <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-        {!won ? (
+        {scenario ? (
+          <Button variant="default" onClick={() => onContinue(roster, 0)}>↩ インポートへ戻る</Button>
+        ) : !won ? (
           <Button variant="default" onClick={onRetry}>↩ もう一度</Button>
         ) : (
           <Button variant="accent" onClick={() => onContinue(withLevelUp, earnedTokens)}>▶ 次へ進む</Button>

@@ -6,7 +6,10 @@ import { FormationScreen } from './screens/FormationScreen'
 import { BattleScreen } from './screens/BattleScreen'
 import { ResultScreen } from './screens/ResultScreen'
 import { GhostScreen } from './screens/GhostScreen'
+import { ImportScreen } from './screens/ImportScreen'
 import type { GameState, RosterUnit, SquadSetup, BattleDef, Ghost } from './game/types'
+import type { BattleScenario } from './game/scenario'
+import { scenarioToWorld } from './game/scenario'
 import { getNode } from './game/campaign'
 import { makeInitialGameState, resetAllUnits, generateMercenary, MERCENARY_COST, makeRecruitGenerals, avgLevel } from './game/army'
 import { makeGhostFromSquads, ghostToBattleDef, saveGhost } from './game/ghost'
@@ -158,14 +161,14 @@ function makeWorldFromSetup(gameState: GameState, battleDef: BattleDef): WorldSt
   }
 }
 
-type Screen = 'map' | 'formation' | 'battle' | 'result' | 'ghost'
+type Screen = 'map' | 'formation' | 'battle' | 'result' | 'ghost' | 'import'
 
 export default function App() {
   const [gameState, setGameState] = useState<GameState>(() => makeInitialGameState())
   const [screen, setScreen] = useState<Screen>('map')
   const [world, setWorld] = useState<WorldState | null>(null)
   const [battleDef, setBattleDef] = useState<BattleDef | null>(null)
-  const [matchType, setMatchType] = useState<'campaign' | 'ghost'>('campaign')
+  const [matchType, setMatchType] = useState<'campaign' | 'ghost' | 'scenario'>('campaign')
   const [currentNodeId, setCurrentNodeId] = useState<string | null>(null)
 
   // 各画面遷移（マップ分岐ノードを選択）
@@ -223,6 +226,16 @@ export default function App() {
     saveGhost(makeGhostFromSquads(squads, gameState.roster))
   }
 
+  // ─── 局地戦インポート（α9）─────────────────────────────────────
+  const handleOpenImport = () => setScreen('import')
+
+  const handleRunScenario = (scn: BattleScenario) => {
+    setMatchType('scenario')
+    setBattleDef({ id: 'scenario', name: scn.name, enemies: { units: [], squads: [] }, allyStartX: 10, enemyStartX: 80, reward: 0 })
+    setWorld(scenarioToWorld(scn))
+    setScreen('battle')
+  }
+
   const handleStartBattle = (squads: SquadSetup[]) => {
     if (!battleDef) return
     const updatedGameState: GameState = {
@@ -241,6 +254,8 @@ export default function App() {
   }
 
   const handleResultContinue = (updatedRoster: RosterUnit[], earnedTokens: number) => {
+    // 局地戦は進捗・ロスターに影響しない → インポート画面へ戻る
+    if (matchType === 'scenario') { setScreen('import'); return }
     const isGhost = matchType === 'ghost'
     // 出撃した隊が装備していた装備に経験値を付与（レベルアップ）
     const usedUids = equippedUids(gameState.squads)
@@ -287,6 +302,8 @@ export default function App() {
   }
 
   const handleResultRetry = () => {
+    // 局地戦のやり直しはインポート画面へ戻る（シナリオは保持していないため）
+    if (matchType === 'scenario') { setScreen('import'); return }
     if (!battleDef) return
     // 兵士の HP とステータスをリセット
     const resettedRoster = resetAllUnits(gameState.roster)
@@ -308,10 +325,14 @@ export default function App() {
           frontier={gameState.frontier}
           onSelectNode={handleSelectNode}
           onOpenGhost={handleOpenGhost}
+          onOpenImport={handleOpenImport}
         />
       )}
       {screen === 'ghost' && (
         <GhostScreen onChallenge={handleChallengeGhost} onBack={() => setScreen('map')} />
+      )}
+      {screen === 'import' && (
+        <ImportScreen onRun={handleRunScenario} onBack={() => setScreen('map')} />
       )}
       {screen === 'formation' && (
         <FormationScreen
@@ -332,6 +353,7 @@ export default function App() {
           world={world}
           roster={gameState.roster}
           reward={battleDef?.reward ?? 0}
+          scenario={matchType === 'scenario'}
           onContinue={handleResultContinue}
           onRetry={handleResultRetry}
         />
