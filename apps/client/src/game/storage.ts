@@ -3,12 +3,15 @@ import { makeInitialGameState } from './army'
 import { makeInitialInventory } from './equipment'
 import { makeInitialItems } from './item'
 import { makeInitialUltItems } from './ultItem'
-import { START_NODE } from './campaign'
+import { START_NODE, MAP_NODES } from './campaign'
 
 const STORAGE_KEY = 'fb-game-state'
 
 // 任意の（古い/外部の）セーブデータを現行スキーマへ正規化（ローカル/クラウド共用）
 export function normalizeGameState(parsed: Partial<GameState>): GameState {
+  // α15: ノードID刷新（n0/n1a/… → n1/n2/n3）。未知ノードは除外し、frontier が空なら開始ノードへ
+  const known = (ids: string[] | undefined) => (ids ?? []).filter(id => MAP_NODES[id])
+  const frontier = known(parsed.frontier)
   return {
     roster:      parsed.roster ?? [],
     squads:      parsed.squads ?? [],
@@ -19,8 +22,8 @@ export function normalizeGameState(parsed: Partial<GameState>): GameState {
     items:       parsed.items ?? makeInitialItems(),
     ultItems:    parsed.ultItems ?? makeInitialUltItems(),
     recruitedBattles: parsed.recruitedBattles ?? [],
-    clearedNodes: parsed.clearedNodes ?? [],
-    frontier:     parsed.frontier ?? [START_NODE],
+    clearedNodes: known(parsed.clearedNodes),
+    frontier:     frontier.length > 0 ? frontier : [START_NODE],
     log:         parsed.log ?? [],
   }
 }

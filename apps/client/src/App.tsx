@@ -11,7 +11,7 @@ import type { GameState, RosterUnit, SquadSetup, BattleDef, Ghost } from './game
 import type { BattleScenario } from './game/scenario'
 import { scenarioToWorld } from './game/scenario'
 import { getNode } from './game/campaign'
-import { makeInitialGameState, resetAllUnits, generateMercenary, MERCENARY_COST, makeRecruitGenerals, avgLevel } from './game/army'
+import { makeInitialGameState, resetAllUnits, generateMercenary, MERCENARY_COST, makeRecruitGenerals, avgLevel, UNIQUE_RECRUITS } from './game/army'
 import { makeGhostFromSquads, ghostToBattleDef, saveGhost } from './game/ghost'
 import { resolveEquip, gainEquipExp, equippedUids } from './game/equipment'
 import type { OwnedEquip, ResolvedEquip } from './game/equipment'
@@ -179,8 +179,8 @@ function makeWorldFromSetup(gameState: GameState, battleDef: BattleDef): WorldSt
     log: [],
     finished: false,
     winner: null,
-    // α8: 戦闘ごとに地形を複製（堀塀破壊で変化しても DEMO_TERRAIN を汚さない）
-    terrain: DEMO_TERRAIN.map(row => [...row]),
+    // α8/α15: 戦闘ごとに地形を複製（戦場固有 terrain があれば優先・なければ DEMO_TERRAIN）
+    terrain: (battleDef.terrain ?? DEMO_TERRAIN).map(row => [...row]),
     terrainDmg: {},
   }
 }
@@ -231,18 +231,27 @@ export default function App() {
     const battle = node.battle
     // α7: 初回突入時の強制加入（援軍・一般）。入隊レベル=平均、再付与は防止
     let gs = gameState
-    if (battle.recruitGenerals && !gs.recruitedBattles.includes(battle.id)) {
+    const needsRecruit = (battle.recruitGenerals || battle.recruitUniques?.length) && !gs.recruitedBattles.includes(battle.id)
+    if (needsRecruit) {
       const lvl = avgLevel(gs.roster)
       const seed = gs.clearedNodes.length * 9973 + gs.roster.length * 17 + 3
-      const recruits = makeRecruitGenerals(seed, battle.recruitGenerals, lvl)
-      gs = {
-        ...gs,
-        roster: [...gs.roster, ...recruits],
-        recruitedBattles: [...gs.recruitedBattles, battle.id],
-        log: [...gs.log, `援軍 ${recruits.length}名が加入（Lv${lvl}）`],
+      const generals = battle.recruitGenerals ? makeRecruitGenerals(seed, battle.recruitGenerals, lvl) : []
+      // α15: ユニーク入軍（マゴ等）。既にロスターに居るユニークは再加入しない
+      const uniques = (battle.recruitUniques ?? [])
+        .map(uid => UNIQUE_RECRUITS[uid]?.())
+        .filter((u): u is RosterUnit => !!u && !gs.roster.some(r => r.id === u.id))
+      const recruits = [...uniques, ...generals]
+      if (recruits.length > 0) {
+        const names = recruits.map(r => r.name).join('・')
+        gs = {
+          ...gs,
+          roster: [...gs.roster, ...recruits],
+          recruitedBattles: [...gs.recruitedBattles, battle.id],
+          log: [...gs.log, `入軍: ${names}（Lv${lvl}）`],
+        }
+        setGameState(gs)
+        saveGame(gs)
       }
-      setGameState(gs)
-      saveGame(gs)
     }
     setBattleDef(battle)
     setWorld(makeWorldFromSetup(gs, battle))

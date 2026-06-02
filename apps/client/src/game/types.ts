@@ -1,4 +1,4 @@
-import type { UnitState, FormationType } from '@fb/sim-core'
+import type { UnitState, FormationType, TerrainType } from '@fb/sim-core'
 import type { SquadEquip, OwnedEquip } from './equipment'
 import type { OwnedItem } from './item'
 
@@ -34,6 +34,8 @@ export interface BattleDef {
   enemyStartX:  number    // 敵初期X座標
   reward:       number    // 勝利時の基礎報酬トークン
   recruitGenerals?: number // α7: 初回突入時に強制加入する一般兵（援軍）の数
+  recruitUniques?: string[] // α15: 初回突入時に強制加入するユニーク（例 ['mago']・既存なら再加入しない）
+  terrain?:     TerrainType[][] // α15: 戦場固有の地形（省略時は DEMO_TERRAIN）
 }
 
 // ─── ゲームステート（persistence 対象）──────────────────────────

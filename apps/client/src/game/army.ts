@@ -37,30 +37,6 @@ export function makeInitialRoster(): RosterUnit[] {
       exp: 0,
     },
     {
-      id: 'unit_mago',
-      name: 'マゴ・バルカ',
-      kind: 'unique',
-      forced: true,
-      side: 'ally',
-      attackAttr: 'slash',
-      ultId: 'senjin',
-      hp: 8000,
-      maxHp: 8000,
-      attack: 240,
-      defense: 50,
-      attackSpeed: 10,
-      gaugeMax: 100,
-      gauge: 0,
-      alive: true,
-      isLeader: true,
-      skills: SKILLS.ironwall.effects,
-      flankMod: -30,
-      rearMod: -50,
-      range: 10,
-      level: 1,
-      exp: 0,
-    },
-    {
       id: 'unit_carthage_a',
       name: 'カルタゴ兵A',
       kind: 'general',
@@ -128,30 +104,42 @@ export function makeInitialRoster(): RosterUnit[] {
       level: 1,
       exp: 0,
     },
-    {
-      id: 'unit_carthage_d',
-      name: 'カルタゴ兵D',
-      kind: 'general',
-      side: 'ally',
-      attackAttr: 'fire',
-      hp: 4100,
-      maxHp: 4100,
-      attack: 232,
-      defense: 84,
-      attackSpeed: 10,
-      gaugeMax: 100,
-      gauge: 0,
-      alive: true,
-      isLeader: false,
-      skills: [],
-      techniques: makeTechniques(['fireball']),
-      flankMod: -30,
-      rearMod: -50,
-      range: 10,
-      level: 1,
-      exp: 0,
-    },
   ]
+}
+
+// ─── ユニーク入軍ビルダー（α15: 戦場ごとの入軍イベント）──────────────
+// マゴ・バルカ（仕様 戦場3で入軍）。火属性の追撃技と戦陣鼓舞を持つ。
+export function makeMago(): RosterUnit {
+  return {
+    id: 'unit_mago',
+    name: 'マゴ・バルカ',
+    kind: 'unique',
+    forced: true,
+    side: 'ally',
+    attackAttr: 'slash',
+    ultId: 'senjin',
+    hp: 8000,
+    maxHp: 8000,
+    attack: 240,
+    defense: 50,
+    attackSpeed: 10,
+    gaugeMax: 100,
+    gauge: 0,
+    alive: true,
+    isLeader: true,
+    skills: SKILLS.ironwall.effects,
+    techniques: makeTechniques(['fireball']),
+    flankMod: -30,
+    rearMod: -50,
+    range: 10,
+    level: 1,
+    exp: 0,
+  }
+}
+
+// ユニークID → ビルダー（recruitUniques で参照）
+export const UNIQUE_RECRUITS: Record<string, () => RosterUnit> = {
+  mago: makeMago,
 }
 
 // ─── レベルアップ判定・処理────────────────────────────────────────
