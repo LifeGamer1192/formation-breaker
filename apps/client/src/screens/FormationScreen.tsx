@@ -21,7 +21,7 @@ function unitTooltip(u: RosterUnit): string {
   return lines.join('\n')
 }
 import { MERCENARY_COST, autoArrange } from '../game/army'
-import { EQUIP_DEFS, SLOTS, SLOT_LABEL } from '../game/equipment'
+import { EQUIP_DEFS, SLOTS, SLOT_LABEL, autoEquip } from '../game/equipment'
 import type { OwnedEquip, EquipSlot } from '../game/equipment'
 import { ITEM_DEFS, MAX_ITEMS_PER_SQUAD } from '../game/item'
 import type { OwnedItem } from '../game/item'
@@ -133,9 +133,21 @@ export function FormationScreen({ roster, gold, potions, inventory, items, initi
     setSquads(prev => prev.map(s => s.id === squadId ? { ...s, formation: f } : s))
   }
 
-  // オート編成: 現在の隊定義（id/name/formation）を維持して unitIds を再割当
+  // オート編成: 現在の隊定義（id/name/formation）を維持して unitIds を再割当。
+  // 隊の装備・装備アイテムは隊ごと（id一致）に引き継ぐ（解除されない）
   const handleAuto = () => {
-    setSquads(prev => autoArrange(roster, prev.map(s => ({ id: s.id, name: s.name, formation: s.formation }))))
+    setSquads(prev => {
+      const arranged = autoArrange(roster, prev.map(s => ({ id: s.id, name: s.name, formation: s.formation })))
+      return arranged.map(a => {
+        const old = prev.find(p => p.id === a.id)
+        return { ...a, equip: old?.equip, itemUids: old?.itemUids }
+      })
+    })
+  }
+
+  // オート装備: インベントリの装備をスロット別に各隊へ自動割当（重複なし）
+  const handleAutoEquip = () => {
+    setSquads(prev => autoEquip(prev, inventory))
   }
 
   const canStart = squads.some(s => s.unitIds.length > 0)
@@ -147,6 +159,9 @@ export function FormationScreen({ roster, gold, potions, inventory, items, initi
           <h1 style={{ fontSize: 18 }}>⚔️ 隊編成</h1>
           <Button variant="accent" onClick={handleAuto} style={{ fontSize: 12, padding: '5px 12px' }}>
             🎲 オート編成
+          </Button>
+          <Button variant="default" onClick={handleAutoEquip} style={{ fontSize: 12, padding: '5px 12px' }} title="インベントリの装備を各隊へ自動割当">
+            🛡️ オート装備
           </Button>
         </div>
         <span style={{

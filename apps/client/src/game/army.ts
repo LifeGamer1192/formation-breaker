@@ -1,5 +1,5 @@
 import { mulberry32, ATTR_IDS } from '@fb/sim-core'
-import type { FormationType } from '@fb/sim-core'
+import type { FormationType, LayerEffect, StatId, EffectOp } from '@fb/sim-core'
 import type { RosterUnit, GameState, SquadSetup } from './types'
 import { makeInitialInventory } from './equipment'
 import { makeInitialItems } from './item'
@@ -242,11 +242,24 @@ export function calcBattleReward(reward: number, killCount: number): number {
 const MERC_NAMES = ['ヌミディア騎兵', 'イベリア兵', 'ガリア傭兵', 'バレアレス投石兵', 'リビア槍兵']
 
 // ランダム特性プール（仕様書 L154: 加入時にランダムで付与）
+// 個人スキルレイヤー（自分のみ）。mul=百分率（+15等）、add=実数加算。
+const tfx = (name: string, target: StatId, op: EffectOp, value: number): LayerEffect =>
+  ({ layer: 'personalSkill', target, op, value, priority: 0, source: name, scope: 'self' })
 const TRAITS: { name: string; effects: RosterUnit['skills'] }[] = [
+  // 既存（スキル由来）
   { name: '不屈',     effects: SKILLS.unyielding.effects },
   { name: '電光石火', effects: SKILLS.blitz.effects },
   { name: '猛き血',   effects: SKILLS.warcry.effects },
   { name: '無骨',     effects: [] },
+  // α拡張: ステ系特性
+  { name: '剛力',     effects: [tfx('剛力', 'attack', 'mul', 15)] },
+  { name: '鉄壁',     effects: [tfx('鉄壁', 'defense', 'mul', 20)] },
+  { name: '俊敏',     effects: [tfx('俊敏', 'attackSpeed', 'mul', 15)] },
+  { name: '頑健',     effects: [tfx('頑健', 'maxHp', 'mul', 15)] },
+  { name: '精密',     effects: [tfx('精密', 'attack', 'add', 25)] },
+  { name: '狂戦士',   effects: [tfx('狂戦士', 'attack', 'mul', 25), tfx('狂戦士', 'defense', 'mul', -15)] },
+  { name: '守勢',     effects: [tfx('守勢', 'defense', 'mul', 25), tfx('守勢', 'attackSpeed', 'mul', -10)] },
+  { name: '巨漢',     effects: [tfx('巨漢', 'maxHp', 'mul', 25), tfx('巨漢', 'attackSpeed', 'mul', -10)] },
 ]
 
 function makeGeneral(seed: number, id: string, name: string, lvl: number): RosterUnit {

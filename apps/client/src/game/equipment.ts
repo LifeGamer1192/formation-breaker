@@ -129,6 +129,41 @@ export function gainEquipExp(inventory: OwnedEquip[], usedUids: Set<string>, amo
   })
 }
 
+// 装備の強さスコア（オート装備の割当順）。攻撃/防御/属性防御/射程/レベルを合算
+function equipScore(o: OwnedEquip): number {
+  const def = EQUIP_DEFS[o.defId]
+  if (!def) return -1
+  const lv = Math.max(1, o.level)
+  const atk = (def.attackAdd ?? 0) + (def.perLevelAtk ?? 0) * (lv - 1)
+  const arm = Object.values(def.armorDef ?? {}).reduce((a, b) => a + b, 0) + (def.perLevelArmor ?? 0) * (lv - 1) * 3
+  return atk + (def.defenseAdd ?? 0) + arm + (def.rangeAdd ?? 0) + lv
+}
+
+// オート装備（α20+）: インベントリの装備をスロット別の強い順に各隊へ重複なく割当。
+// 各隊の全スロットを再割当する（兵士の居る隊のみ）。隊シェイプはジェネリックで受ける。
+export function autoEquip<T extends { unitIds: string[]; equip?: SquadEquip }>(squads: T[], inventory: OwnedEquip[]): T[] {
+  // スロット別プール（強い順）
+  const bySlot = new Map<EquipSlot, OwnedEquip[]>()
+  for (const slot of SLOTS) bySlot.set(slot, [])
+  for (const o of inventory) {
+    const def = EQUIP_DEFS[o.defId]
+    if (def) bySlot.get(def.slot)!.push(o)
+  }
+  for (const slot of SLOTS) bySlot.get(slot)!.sort((a, b) => equipScore(b) - equipScore(a))
+  const ptr = new Map<EquipSlot, number>(SLOTS.map(s => [s, 0]))
+
+  return squads.map(s => {
+    if (s.unitIds.length === 0) return { ...s, equip: {} as SquadEquip }
+    const equip: SquadEquip = {}
+    for (const slot of SLOTS) {
+      const pool = bySlot.get(slot)!
+      const i = ptr.get(slot)!
+      if (i < pool.length) { equip[slot] = pool[i].uid; ptr.set(slot, i + 1) }
+    }
+    return { ...s, equip }
+  })
+}
+
 // 編成中の隊が装備している装備uidの集合
 export function equippedUids(squads: { equip?: SquadEquip }[]): Set<string> {
   const set = new Set<string>()
