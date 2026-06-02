@@ -2,6 +2,7 @@ import type { GameState } from './types'
 import { makeInitialGameState } from './army'
 import { makeInitialInventory } from './equipment'
 import { makeInitialItems } from './item'
+import { makeInitialUltItems } from './ultItem'
 import { START_NODE } from './campaign'
 
 const STORAGE_KEY = 'fb-game-state'
@@ -16,6 +17,7 @@ export function normalizeGameState(parsed: Partial<GameState>): GameState {
     potions:     parsed.potions ?? 3,
     inventory:   parsed.inventory ?? makeInitialInventory(),
     items:       parsed.items ?? makeInitialItems(),
+    ultItems:    parsed.ultItems ?? makeInitialUltItems(),
     recruitedBattles: parsed.recruitedBattles ?? [],
     clearedNodes: parsed.clearedNodes ?? [],
     frontier:     parsed.frontier ?? [START_NODE],

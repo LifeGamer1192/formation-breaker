@@ -1,4 +1,4 @@
-import type { WorldState, SquadState, Side } from './types'
+import type { WorldState, SquadState, Side, UltimateRuntime } from './types'
 import type { Prng } from './prng'
 import type { LayerEffect } from './layers'
 import type { Vec2 } from './geo'
@@ -202,8 +202,21 @@ export function executeUltimate(world: WorldState, squadId: string, targetPos?: 
   const caster = world.squads.find(s => s.id === squadId)
   if (!caster || !caster.ult) return world
   if ((caster.ultGauge ?? 0) < caster.ult.gaugeMax) return world // 未充填
+  return applyUltEffect(world, caster, caster.ult, targetPos, true)
+}
 
-  const ult = caster.ult
+// 必殺技アイテム（消費）用（α12）。ゲージに依存せず任意の必殺技ランタイムを発動。
+// アイテムの消費は GameState 側（クライアント）で行い、ここでは盤面効果のみ適用する。
+export function executeUltimateWith(world: WorldState, squadId: string, ult: UltimateRuntime, targetPos?: Vec2): WorldState {
+  if (world.finished) return world
+  const caster = world.squads.find(s => s.id === squadId)
+  if (!caster) return world
+  return applyUltEffect(world, caster, ult, targetPos, false)
+}
+
+// 必殺技効果の本体（executeUltimate / executeUltimateWith 共用）。
+// resetGauge=true のとき発動隊のゲージを 0 に戻す（通常必殺技）。アイテム発動は false。
+function applyUltEffect(world: WorldState, caster: SquadState, ult: UltimateRuntime, targetPos: Vec2 | undefined, resetGauge: boolean): WorldState {
   const view = buildUnitView(world)
   const units: WorldState['units'] = {}
   for (const [k, v] of Object.entries(world.units)) units[k] = { ...v }
@@ -253,8 +266,8 @@ export function executeUltimate(world: WorldState, squadId: string, targetPos?: 
     newLog.push(`[T${world.tick}] ✨${caster.name}: ${ult.icon}${ult.name}！ 隊を強化（${((ult.durationTicks ?? 200) / 20).toFixed(0)}秒）`)
   }
 
-  // ゲージ消費
-  const squads = world.squads.map(s => s.id === caster.id ? { ...s, ultGauge: 0 } : s)
+  // ゲージ消費（通常必殺技のみ。アイテム発動はゲージに依存しない）
+  const squads = resetGauge ? world.squads.map(s => s.id === caster.id ? { ...s, ultGauge: 0 } : s) : world.squads
 
   // 勝敗再判定（範囲攻撃で決着しうる・大将撃破含む）
   const outcome = checkOutcome(units)

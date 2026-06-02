@@ -3,6 +3,7 @@ import type { FormationType } from '@fb/sim-core'
 import type { RosterUnit, GameState, SquadSetup } from './types'
 import { makeInitialInventory } from './equipment'
 import { makeInitialItems } from './item'
+import { makeInitialUltItems } from './ultItem'
 import { SKILLS } from './skills'
 import { makeTechniques } from './technique'
 import { START_NODE } from './campaign'
@@ -227,6 +228,7 @@ export function makeInitialGameState(): GameState {
     potions: 3,
     inventory: makeInitialInventory(),
     items: makeInitialItems(),
+    ultItems: makeInitialUltItems(),
     recruitedBattles: [],
     clearedNodes: [],
     frontier: [START_NODE],

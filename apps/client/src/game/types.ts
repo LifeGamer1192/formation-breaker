@@ -45,6 +45,7 @@ export interface GameState {
   potions:     number         // α12: 回復薬（編成画面で兵士を回復）
   inventory:   OwnedEquip[]   // α3: 軍所有の装備インベントリ
   items:       OwnedItem[]    // α12: 軍所有の装備アイテム
+  ultItems:    Record<string, number>  // α12: 必殺技アイテム（消費・defId→個数）
   recruitedBattles: string[]  // α7: 強制加入を適用済みの戦場ID（再付与防止）
   // α8: マップ分岐（後戻り不可）
   clearedNodes: string[]      // クリア済みノードID

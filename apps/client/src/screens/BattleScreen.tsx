@@ -10,6 +10,7 @@ import type {
   TerrainType, Vec2, Command, ReplayData,
 } from '@fb/sim-core'
 import type { BattleDef } from '../game/types'
+import { ULT_ITEMS, resolveUltItem } from '../game/ultItem'
 import { skillMarks } from '../game/skills'
 import { PixiBattlefield } from './pixiBattlefield'
 
@@ -235,11 +236,15 @@ export interface BattleScreenProps {
   battleDef: BattleDef
   initialWorld: WorldState
   onBattleEnd: (world: WorldState) => void
+  ultItems?: Record<string, number>          // α12: 必殺技アイテム所持（defId→個数）
+  onUseUltItem?: (defId: string) => void      // 消費を GameState 側へ永続化
 }
 
-export function BattleScreen({ battleDef, initialWorld, onBattleEnd }: BattleScreenProps) {
+export function BattleScreen({ battleDef, initialWorld, onBattleEnd, ultItems, onUseUltItem }: BattleScreenProps) {
   const SEED = 42
   const [world,    setWorld]    = useState<WorldState>(initialWorld)
+  // 必殺技アイテムの残数（戦闘ローカル。発動でローカル減算＋onUseUltItemで永続化）
+  const [ultItemCounts, setUltItemCounts] = useState<Record<string, number>>(() => ({ ...(ultItems ?? {}) }))
   const [running,  setRunning]  = useState(false)
   const [speed,    setSpeed]    = useState(1)
   const [selected, setSelected] = useState<string | null>(null)
@@ -570,6 +575,29 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd }: BattleScr
             >{sq.ult.icon} {sq.ult.name}{ready ? '！' : '（充填中）'}</button>
           )
         })()}
+        {/* 必殺技アイテム（消費・α12）: 選択隊が即時発動。ゲージ不要・1個消費 */}
+        {selected && mode === 'live' && Object.entries(ultItemCounts).map(([defId, count]) => {
+          const def = ULT_ITEMS[defId]
+          if (!def || count <= 0) return null
+          return (
+            <button
+              key={defId}
+              style={btn(false, true)}
+              title={def.desc}
+              onClick={() => {
+                const ult = resolveUltItem(defId)
+                if (!ult) return
+                setWorld(prev => {
+                  const cmd: Command = { tick: prev.tick, type: 'ultItem', squadId: selected, ult }
+                  cmdsRef.current.push(cmd)
+                  return applyCommand(prev, cmd)
+                })
+                setUltItemCounts(prev => ({ ...prev, [defId]: (prev[defId] ?? 0) - 1 }))
+                onUseUltItem?.(defId)
+              }}
+            >{def.icon} {def.name} ×{count}</button>
+          )
+        })}
       </div>
 
       {matchMsg && (

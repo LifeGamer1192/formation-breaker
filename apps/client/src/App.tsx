@@ -316,6 +316,17 @@ export default function App() {
     setScreen('result')
   }
 
+  // 必殺技アイテム消費（戦闘中に発動した分を GameState へ即時反映・永続化）
+  const handleUseUltItem = (defId: string) => {
+    setGameState(prev => {
+      const cur = prev.ultItems[defId] ?? 0
+      if (cur <= 0) return prev
+      const next: GameState = { ...prev, ultItems: { ...prev.ultItems, [defId]: cur - 1 } }
+      saveGame(next)
+      return next
+    })
+  }
+
   const handleResultContinue = (updatedRoster: RosterUnit[], earnedGold: number) => {
     // 局地戦は進捗・ロスターに影響しない → インポート画面へ戻る
     if (matchType === 'scenario') { setScreen('import'); return }
@@ -435,7 +446,8 @@ export default function App() {
         />
       )}
       {screen === 'battle' && world && battleDef && (
-        <BattleScreen battleDef={battleDef} initialWorld={world} onBattleEnd={handleBattleEnd} />
+        <BattleScreen battleDef={battleDef} initialWorld={world} onBattleEnd={handleBattleEnd}
+          ultItems={gameState.ultItems} onUseUltItem={handleUseUltItem} />
       )}
       {screen === 'result' && world && (
         <ResultScreen

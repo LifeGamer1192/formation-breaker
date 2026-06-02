@@ -5,8 +5,8 @@
 
 import type { Vec2 } from './geo'
 import type { FormationType } from './formation'
-import type { WorldState } from './types'
-import { executeUltimate } from './combat'
+import type { WorldState, UltimateRuntime } from './types'
+import { executeUltimate, executeUltimateWith } from './combat'
 
 export type Command =
   | { tick: number; type: 'moveSet';    squadId: string; waypoints: Vec2[]       }
@@ -14,6 +14,8 @@ export type Command =
   | { tick: number; type: 'moveCancel'; squadId: string                           }
   | { tick: number; type: 'formation';  squadId: string; formation: FormationType }
   | { tick: number; type: 'ultimate';   squadId: string; targetPos?: Vec2         }
+  // 必殺技アイテム（消費・α12）。アイテムの必殺技ランタイムをコマンドに内包しリプレイ可能にする。
+  | { tick: number; type: 'ultItem';    squadId: string; ult: UltimateRuntime; targetPos?: Vec2 }
   | { tick: number; type: 'technique';  unitId:  string; techId: string; enabled: boolean }
 
 /** 1コマンドを worldState に適用して新 worldState を返す (純粋関数) */
@@ -33,6 +35,8 @@ export function applyCommand(world: WorldState, cmd: Command): WorldState {
         s.id === cmd.squadId ? { ...s, formation: cmd.formation } : s) }
     case 'ultimate':
       return executeUltimate(world, cmd.squadId, cmd.targetPos)
+    case 'ultItem':
+      return executeUltimateWith(world, cmd.squadId, cmd.ult, cmd.targetPos)
     case 'technique': {
       const u = world.units[cmd.unitId]
       if (!u || !u.techniques) return world
