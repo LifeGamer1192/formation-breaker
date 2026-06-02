@@ -16,6 +16,7 @@ import { bgUrl } from '../game/theme'
 import { FaceIcon } from '../ui/FaceIcon'
 import { skillMarks } from '../game/skills'
 import { PixiBattlefield } from './pixiBattlefield'
+import type { FxEffect } from './pixiBattlefield'
 
 interface DmgFloat { id: string; x: number; y: number; dmg: number; age: number; side: 'ally'|'enemy' }
 
@@ -249,7 +250,6 @@ export interface BattleScreenProps {
 export function BattleScreen({ battleDef, initialWorld, onBattleEnd, ultItems, onUseUltItem }: BattleScreenProps) {
   const SEED = 42
   const { theme } = useTheme()
-  const [texVer,   setTexVer]   = useState(0)   // テーマ画像読込完了で再描画を促す
   const [world,    setWorld]    = useState<WorldState>(initialWorld)
   // 必殺技アイテムの残数（戦闘ローカル。発動でローカル減算＋onUseUltItemで永続化）
   const [ultItemCounts, setUltItemCounts] = useState<Record<string, number>>(() => ({ ...(ultItems ?? {}) }))
@@ -259,6 +259,7 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd, ultItems, o
   const [mode,     setMode]     = useState<'deploy' | 'live' | 'replaying' | 'replay-done'>('deploy')
   const [matchMsg, setMatchMsg] = useState('')
   const [damageFloats, setDamageFloats] = useState<DmgFloat[]>([])
+  const [effects, setEffects] = useState<FxEffect[]>([])   // α18: 必殺技/技エフェクト
   const [pixiReady, setPixiReady] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const pixiRef      = useRef<PixiBattlefield | null>(null)
@@ -270,6 +271,14 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd, ultItems, o
   const liveResultRef= useRef<WorldState | null>(null)
   const prevWorldRef = useRef<WorldState>(initialWorld)
   const battleInitRef= useRef<WorldState>(initialWorld) // 配置確定後の開戦時の初期状態（リプレイ基準）
+  // α18: tick間補間（60fps）用。ステップ直前のWorldとその時刻を保持し RAF で線形補間
+  const interpPrevRef = useRef<WorldState | null>(null)
+  const lastStepRef   = useRef<number>(0)
+  const renderStateRef = useRef({ world, selected: null as string | null, mode: 'deploy' as typeof mode, damageFloats, speed, effects })
+  renderStateRef.current = { world, selected, mode, damageFloats, speed, effects }
+  // 必殺技/技エフェクトを発生（ゲーム座標）
+  const spawnFx = (x: number, y: number, color: string, radius = 18) =>
+    setEffects(prev => [...prev.filter(f => f.age < 16), { id: `${x},${y},${performance.now()}`, x, y, age: 0, color, radius }])
 
   // PixiJS アプリの初期化（マウント時に一度）
   useEffect(() => {
@@ -286,23 +295,41 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd, ultItems, o
     return () => { disposed = true; pixiRef.current?.destroy(); pixiRef.current = null }
   }, [])
 
-  // テーマ画像の読み込み（テーマ変更・初期化時）。完了で再描画を促す
+  // テーマ画像の読み込み（テーマ変更・初期化時）。RAF が毎フレーム参照するので完了で自動反映
   useEffect(() => {
     if (!pixiReady || !pixiRef.current) return
-    pixiRef.current.setTheme(theme, () => setTexVer(v => v + 1))
+    pixiRef.current.setTheme(theme)
   }, [pixiReady, theme])
 
-  // 状態変化のたびに Pixi で再描画
+  // α18: RAF ループで 60fps 描画＋tick間補間。状態は ref 経由で参照
   useEffect(() => {
-    if (!pixiReady || !pixiRef.current) return
-    pixiRef.current.render({
-      world,
-      selectedId: (mode === 'live' || mode === 'deploy') ? selected : null,
-      isReplay: mode === 'replaying',
-      isDeploy: mode === 'deploy',
-      damageFloats,
-    })
-  }, [pixiReady, world, selected, mode, damageFloats, texVer])
+    if (!pixiReady) return
+    let raf = 0
+    const loop = () => {
+      const pb = pixiRef.current
+      if (pb) {
+        const { world, selected, mode, damageFloats, speed, effects } = renderStateRef.current
+        const animating = mode === 'live' || mode === 'replaying'
+        const dur = 50 / Math.max(1, speed)   // 1ステップの実時間(ms)
+        const alpha = animating && interpPrevRef.current
+          ? Math.min(1, (performance.now() - lastStepRef.current) / dur)
+          : 1
+        pb.render({
+          world,
+          prevWorld: animating ? (interpPrevRef.current ?? undefined) : undefined,
+          alpha,
+          selectedId: (mode === 'live' || mode === 'deploy') ? selected : null,
+          isReplay: mode === 'replaying',
+          isDeploy: mode === 'deploy',
+          damageFloats,
+          effects,
+        })
+      }
+      raf = requestAnimationFrame(loop)
+    }
+    raf = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(raf)
+  }, [pixiReady])
 
   // ダメージフロート検出・更新
   useEffect(() => {
@@ -331,6 +358,7 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd, ultItems, o
     // 既存フロートの年齢をインクリメント
     const aged = damageFloats.map(f => ({ ...f, age: f.age + 1 })).filter(f => f.age < 25)
     setDamageFloats([...aged, ...newFloats])
+    setEffects(prev => prev.map(e => ({ ...e, age: e.age + 1 })).filter(e => e.age < 16))  // α18: エフェクト加齢
 
     prevWorldRef.current = world
   }, [world, mode, damageFloats])
@@ -391,6 +419,7 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd, ultItems, o
     const id = setInterval(() => {
       setWorld(prev => {
         if (prev.finished) { setRunning(false); return prev }
+        interpPrevRef.current = prev; lastStepRef.current = performance.now()  // α18: 補間基点
         let w = prev
         for (let i = 0; i < speed; i++) {
           if (w.finished) break
@@ -415,6 +444,7 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd, ultItems, o
         return
       }
       setWorld(prev => {
+        interpPrevRef.current = prev; lastStepRef.current = performance.now()  // α18: 補間基点
         const cmds = replay.commands.filter((c: Command) => c.tick === t)
         let w = prev
         for (const cmd of cmds) w = applyCommand(w, cmd)
@@ -586,11 +616,18 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd, ultItems, o
             <button
               style={btn(!ready, true)}
               disabled={!ready}
-              onClick={() => setWorld(prev => {
-                const cmd: Command = { tick: prev.tick, type: 'ultimate', squadId: selected }
-                cmdsRef.current.push(cmd)
-                return applyCommand(prev, cmd)
-              })}
+              onClick={() => {
+                const center = sq.ult?.kind === 'aoeDamage' || sq.ult?.kind === 'terrain' || sq.ult?.kind === 'elephantDisable'
+                  ? (world.squads.filter(s => s.side !== sq.side && s.unitIds.some(id => world.units[id]?.alive))
+                      .map(s => s.pos).sort((p, q) => (Math.hypot(p.x - sq.pos.x, p.y - sq.pos.y) - Math.hypot(q.x - sq.pos.x, q.y - sq.pos.y)))[0]) ?? sq.pos
+                  : sq.pos
+                spawnFx(center.x, center.y, '#ffdd55', sq.ult?.radius ? Math.max(12, sq.ult.radius) : 16)
+                setWorld(prev => {
+                  const cmd: Command = { tick: prev.tick, type: 'ultimate', squadId: selected }
+                  cmdsRef.current.push(cmd)
+                  return applyCommand(prev, cmd)
+                })
+              }}
             >{sq.ult.icon} {sq.ult.name}{ready ? '！' : '（充填中）'}</button>
           )
         })()}
@@ -606,6 +643,12 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd, ultItems, o
               onClick={() => {
                 const ult = resolveUltItem(defId)
                 if (!ult) return
+                const sq = world.squads.find(s => s.id === selected)
+                const center = (ult.kind === 'aoeDamage' || ult.kind === 'terrain' || ult.kind === 'elephantDisable') && sq
+                  ? (world.squads.filter(s => s.side !== sq.side && s.unitIds.some(id => world.units[id]?.alive))
+                      .map(s => s.pos).sort((p, q) => (Math.hypot(p.x - sq.pos.x, p.y - sq.pos.y) - Math.hypot(q.x - sq.pos.x, q.y - sq.pos.y)))[0]) ?? sq.pos
+                  : sq?.pos
+                if (center) spawnFx(center.x, center.y, '#88ddff', Math.max(12, ult.radius || 16))
                 setWorld(prev => {
                   const cmd: Command = { tick: prev.tick, type: 'ultItem', squadId: selected, ult }
                   cmdsRef.current.push(cmd)

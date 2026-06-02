@@ -20,6 +20,8 @@ const gx = (x: number) => x * SCALE
 const gy = (y: number) => y * SCALE
 
 export interface DmgFloat { id: string; x: number; y: number; dmg: number; age: number; side: 'ally' | 'enemy' }
+// α18: 必殺技/技エフェクト（拡大リング）。x,y はゲーム座標、age はtick数
+export interface FxEffect { id: string; x: number; y: number; age: number; color: string; radius: number }
 
 export interface RenderState {
   world: WorldState
@@ -27,7 +29,12 @@ export interface RenderState {
   isReplay: boolean
   isDeploy: boolean
   damageFloats: DmgFloat[]
+  prevWorld?: WorldState   // α18: tick間補間の直前World
+  alpha?: number           // α18: 補間係数 0..1（prevWorld→world）
+  effects?: FxEffect[]     // α18: 必殺技/技エフェクト
 }
+
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t
 
 export class PixiBattlefield {
   readonly app: Application
@@ -82,6 +89,7 @@ export class PixiBattlefield {
 
   render(s: RenderState) {
     const { world, selectedId, isReplay, isDeploy, damageFloats } = s
+    const a = s.alpha ?? 1
     const g = this.gfx
     g.clear()
     for (const c of this.textLayer.removeChildren()) c.destroy()
@@ -112,12 +120,17 @@ export class PixiBattlefield {
     }
 
     const view = buildUnitView(world)
+    // α18: tick間補間（prevWorld→world を alpha で線形補間）
+    const prevView = s.prevWorld && a < 1 ? buildUnitView(s.prevWorld) : null
+    const prevSquad = (id: string) => s.prevWorld?.squads.find(q => q.id === id)
 
     for (const squad of world.squads) {
       const aliveIds = squad.unitIds.filter(id => world.units[id]?.alive)
       if (aliveIds.length === 0) continue
 
-      const px = gx(squad.pos.x), py = gy(squad.pos.y)
+      const ps = prevView ? prevSquad(squad.id) : undefined
+      const px = gx(ps ? lerp(ps.pos.x, squad.pos.x, a) : squad.pos.x)
+      const py = gy(ps ? lerp(ps.pos.y, squad.pos.y, a) : squad.pos.y)
       const isAlly = squad.side === 'ally'
       const isFront = squad.name === '前衛'
       const baseColor = isAlly ? (isFront ? '#48aaff' : '#88ccff') : (isFront ? '#ff6644' : '#ff9977')
@@ -174,7 +187,9 @@ export class PixiBattlefield {
         const unit = world.units[unitId]
         const uv = view.get(unitId)
         if (!uv) return
-        const ux = gx(uv.pos.x), uy = gy(uv.pos.y)
+        const pv = prevView?.get(unitId)
+        const ux = gx(pv ? lerp(pv.pos.x, uv.pos.x, a) : uv.pos.x)
+        const uy = gy(pv ? lerp(pv.pos.y, uv.pos.y, a) : uv.pos.y)
         const facing = uv.facing
         const hpPct = Math.max(0, unit.hp / unit.maxHp)
 
@@ -218,6 +233,19 @@ export class PixiBattlefield {
       })
 
       if (isSelected) this.text(`${isAlly ? '味' : '敵'}${squad.name}`, px, py - 4, 9, baseColor, { ax: 0.5, ay: 1, bold: true })
+    }
+
+    // ── 必殺技/技エフェクト（拡大リング＋発光）α18 ──
+    const FX_LIFE = 16
+    for (const fx of s.effects ?? []) {
+      const t = Math.min(1, (fx.age + a) / FX_LIFE)   // 補間込みで滑らかに広がる
+      const cx = gx(fx.x), cy = gy(fx.y)
+      const r = fx.radius * SCALE * t
+      const alpha = (1 - t) * 0.8
+      if (alpha <= 0) continue
+      g.circle(cx, cy, r).stroke({ width: 3, color: fx.color, alpha })
+      g.circle(cx, cy, r * 0.6).stroke({ width: 1.5, color: fx.color, alpha: alpha * 0.6 })
+      if (t < 0.4) g.circle(cx, cy, fx.radius * SCALE * 0.3).fill({ color: fx.color, alpha: (0.4 - t) * 0.9 })
     }
 
     // ── ダメージフロート ──

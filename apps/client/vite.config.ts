@@ -25,7 +25,9 @@ export default defineConfig({
         scope: '/',
         icons: [
           { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
-          { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
+          { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       workbox: {
@@ -37,6 +39,18 @@ export default defineConfig({
   resolve: {
     alias: {
       '@fb/sim-core': fileURLToPath(new URL('../../packages/sim-core/src/index.ts', import.meta.url)),
+    },
+  },
+  // α18: バンドル分割（重い依存をベンダーチャンクに分け初回ロードと更新差分を最適化）
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          pixi: ['pixi.js'],
+          supabase: ['@supabase/supabase-js'],
+          react: ['react', 'react-dom'],
+        },
+      },
     },
   },
 })
