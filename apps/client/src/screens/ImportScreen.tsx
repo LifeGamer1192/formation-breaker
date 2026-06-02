@@ -30,6 +30,16 @@ export function ImportScreen({ onRun, onBack }: ImportScreenProps) {
 
   const loadSample = () => { setText(JSON.stringify(SAMPLE_SCENARIO, null, 2)); setError(null) }
 
+  // α16: シナリオの書き出し（現在の内容、空ならサンプルを .json でダウンロード）
+  const handleExport = () => {
+    const body = text.trim() ? text : JSON.stringify(SAMPLE_SCENARIO, null, 2)
+    const blob = new Blob([body], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = 'scenario.json'; a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div style={{ maxWidth: 720, margin: '0 auto', padding: '12px', minHeight: '100vh' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -51,6 +61,7 @@ export function ImportScreen({ onRun, onBack }: ImportScreenProps) {
           📂 ファイル選択
           <input type="file" accept=".json,application/json,text/plain" onChange={handleFile} style={{ display: 'none' }} />
         </label>
+        <Button variant="default" onClick={handleExport} style={{ fontSize: 12 }}>📤 書き出し</Button>
       </div>
 
       <textarea

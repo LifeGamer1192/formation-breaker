@@ -5,6 +5,38 @@ import { C } from '../ui/theme'
 import { Button } from '../ui/Button'
 import { useTheme } from '../ui/ThemeContext'
 import { THEME_IDS, THEME_LABEL } from '../game/theme'
+import { parseMod, saveMod, clearSavedMod, activeModName, SAMPLE_MOD } from '../game/mod'
+
+// 🧩 Mod 差し替えパネル（α16）。適用/解除は再読込で全UIへ確実に反映。
+function ModPanel() {
+  const [text, setText] = useState('')
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const active = activeModName()
+  const apply = () => {
+    const r = parseMod(text)
+    if (!r.ok) { setMsg({ ok: false, text: '❌ ' + r.error }); return }
+    saveMod(r.mod)
+    setMsg({ ok: true, text: `✅ 「${r.mod.name}」を適用します（再読込）` })
+    setTimeout(() => location.reload(), 400)
+  }
+  const reset = () => { clearSavedMod(); setTimeout(() => location.reload(), 200) }
+  return (
+    <div style={{ maxWidth: 420, margin: '12px auto 0', background: C.panel, borderRadius: 8, padding: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+        <span style={{ fontSize: 12, fontWeight: 'bold', color: C.ally }}>🧩 Mod（カタログ差し替え）</span>
+        <span style={{ fontSize: 9, color: active ? C.green : C.sub }}>{active ? `適用中: ${active}` : 'built-in'}</span>
+      </div>
+      <textarea value={text} onChange={e => setText(e.target.value)} placeholder="Mod の JSON を貼り付け"
+        style={{ width: '100%', height: 64, fontSize: 10, fontFamily: 'monospace', background: '#11131f', color: '#cde', border: `1px solid ${C.sub}`, borderRadius: 6, padding: 6, boxSizing: 'border-box', resize: 'vertical' }} />
+      <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+        <Button variant="accent" onClick={apply} style={{ fontSize: 11, padding: '5px 10px' }}>適用</Button>
+        <Button variant="default" onClick={() => setText(JSON.stringify(SAMPLE_MOD, null, 2))} style={{ fontSize: 11, padding: '5px 10px' }}>サンプル</Button>
+        <Button variant="default" onClick={reset} style={{ fontSize: 11, padding: '5px 10px' }}>解除（built-in）</Button>
+      </div>
+      {msg && <div style={{ fontSize: 10, color: msg.ok ? C.green : C.danger, marginTop: 5 }}>{msg.text}</div>}
+    </div>
+  )
+}
 
 // ⚙️ グラフィックテーマ切り替えパネル（α15）
 function ThemeSwitch() {
@@ -166,6 +198,8 @@ export function MapScreen({ clearedNodes, frontier, tokens, onSelectNode, onOpen
           </>
         )}
       </div>
+
+      <ModPanel />
     </div>
   )
 }
