@@ -20,6 +20,7 @@ const CH      = 360
 const TILE_PX = 60
 const UNIT_R  = 9
 const SQUAD_R = 22
+const DEPLOY_MAX_X = 40  // 配置ゾーン右端（ゲーム単位・α8）
 
 const TERRAIN_COLOR: Record<TerrainType, string> = {
   plain: '#4a7a30', forest: '#1e5010', mountain: '#7a7060', desert: '#b8922a', swamp: '#3a5a3a',
@@ -34,10 +35,11 @@ const IMPASSABLE_SET = new Set<TerrainType>(['water', 'river', 'highmount', 'moa
 const gx = (x: number) => x * SCALE
 const gy = (y: number) => y * SCALE
 
-function drawBattlefield(ctx: CanvasRenderingContext2D, world: WorldState, selectedId: string | null, isReplay: boolean, damageFloats: DmgFloat[]) {
+function drawBattlefield(ctx: CanvasRenderingContext2D, world: WorldState, selectedId: string | null, isReplay: boolean, damageFloats: DmgFloat[], isDeploy = false) {
   ctx.clearRect(0, 0, CW, CH)
 
-  DEMO_TERRAIN.forEach((row, ri) => row.forEach((terrain, ci) => {
+  const grid = world.terrain ?? DEMO_TERRAIN
+  grid.forEach((row, ri) => row.forEach((terrain, ci) => {
     const x = ci * TILE_PX, y = ri * TILE_PX
     ctx.fillStyle = TERRAIN_COLOR[terrain]
     ctx.fillRect(x, y, TILE_PX, TILE_PX)
@@ -53,6 +55,18 @@ function drawBattlefield(ctx: CanvasRenderingContext2D, world: WorldState, selec
       ctx.restore()
     }
   }))
+
+  // 配置フェーズ: 配置可能ゾーン（左側）を明示
+  if (isDeploy) {
+    ctx.save()
+    ctx.fillStyle = '#48aaff18'
+    ctx.fillRect(0, 0, DEPLOY_MAX_X * SCALE, CH)
+    ctx.strokeStyle = '#48aaff88'; ctx.lineWidth = 2; ctx.setLineDash([6, 4])
+    ctx.strokeRect(2, 2, DEPLOY_MAX_X * SCALE - 4, CH - 4)
+    ctx.fillStyle = '#9cf'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'left'
+    ctx.fillText('配置ゾーン（隊を選択→クリックで配置）', 6, 14)
+    ctx.restore()
+  }
 
   const view = buildUnitView(world)
 
@@ -395,7 +409,7 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd }: BattleScr
   const [running,  setRunning]  = useState(false)
   const [speed,    setSpeed]    = useState(1)
   const [selected, setSelected] = useState<string | null>(null)
-  const [mode,     setMode]     = useState<'live' | 'replaying' | 'replay-done'>('live')
+  const [mode,     setMode]     = useState<'deploy' | 'live' | 'replaying' | 'replay-done'>('deploy')
   const [matchMsg, setMatchMsg] = useState('')
   const [damageFloats, setDamageFloats] = useState<DmgFloat[]>([])
   const canvasRef    = useRef<HTMLCanvasElement>(null)
@@ -406,10 +420,11 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd }: BattleScr
   const replayRef    = useRef<ReplayData | null>(null)
   const liveResultRef= useRef<WorldState | null>(null)
   const prevWorldRef = useRef<WorldState>(initialWorld)
+  const battleInitRef= useRef<WorldState>(initialWorld) // 配置確定後の開戦時の初期状態（リプレイ基準）
 
   useEffect(() => {
     const ctx = canvasRef.current?.getContext('2d')
-    if (ctx) drawBattlefield(ctx, world, mode === 'live' ? selected : null, mode === 'replaying', damageFloats)
+    if (ctx) drawBattlefield(ctx, world, (mode === 'live' || mode === 'deploy') ? selected : null, mode === 'replaying', damageFloats, mode === 'deploy')
   }, [world, selected, mode, damageFloats])
 
   // ダメージフロート検出・更新
@@ -456,12 +471,23 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd }: BattleScr
     cmdsRef.current = []
     replayRef.current = null
     liveResultRef.current = null
-    setWorld(initialWorld)
+    setWorld(battleInitRef.current) // 配置確定後の開戦状態に戻す
     setRunning(false)
     setSelected(null)
     setMode('live')
     setMatchMsg('')
-  }, [initialWorld])
+  }, [])
+
+  // 配置確定 → 開戦（この時点の world をリプレイ基準に固定）
+  const startBattle = useCallback(() => {
+    battleInitRef.current = world
+    prevWorldRef.current = world
+    rngRef.current = mulberry32(SEED)
+    cmdsRef.current = []        // 配置フェーズの操作は記録しない（初期状態に内包）
+    setSelected(null)
+    setMode('live')
+    setRunning(true)
+  }, [world])
 
   const changeFormation = (squadId: string, f: FormationType) => {
     setWorld(prev => {
@@ -540,7 +566,7 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd }: BattleScr
     if (!replayRef.current) return
     replayRngRef.current = mulberry32(SEED)
     replayTickRef.current = 0
-    setWorld(initialWorld)
+    setWorld(battleInitRef.current)
     setRunning(false)
     setSelected(null)
     setMatchMsg('')
@@ -548,7 +574,7 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd }: BattleScr
   }
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (mode !== 'live') return
+    if (mode !== 'live' && mode !== 'deploy') return
     const rect = canvasRef.current!.getBoundingClientRect()
     const clickGx: Vec2 = {
       x: (e.clientX - rect.left) * (CW / rect.width)  / SCALE,
@@ -566,6 +592,20 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd }: BattleScr
       }
       if (dist(squad.pos, clickGx) <= SQUAD_R / SCALE) { clickedSquad = squad; break }
     }
+
+    // 配置フェーズ: 選択中の味方隊を配置ゾーン内に再配置（移動コマンドではない）
+    if (mode === 'deploy') {
+      if (clickedSquad) { setSelected(prev => prev === clickedSquad!.id ? null : clickedSquad!.id); return }
+      if (selected) {
+        const sq = world.squads.find(s => s.id === selected)
+        if (sq && sq.side === 'ally') {
+          const pos = { x: Math.min(DEPLOY_MAX_X, Math.max(3, clickGx.x)), y: Math.min(57, Math.max(3, clickGx.y)) }
+          setWorld(prev => ({ ...prev, squads: prev.squads.map(s => s.id === selected ? { ...s, pos } : s) }))
+        }
+      }
+      return
+    }
+
     if (clickedSquad) { setSelected(prev => prev === clickedSquad!.id ? null : clickedSquad!.id); return }
 
     if (selected) {
@@ -624,8 +664,11 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd }: BattleScr
       </div>
 
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-        {!isReplay && (
-          <button style={btn(world.finished || isReplay)} onClick={() => setRunning(r => !r)} disabled={world.finished || isReplay}>
+        {mode === 'deploy' && (
+          <button style={btn(false, true)} onClick={startBattle}>⚔️ 開戦</button>
+        )}
+        {mode === 'live' && (
+          <button style={btn(world.finished)} onClick={() => setRunning(r => !r)} disabled={world.finished}>
             {running ? '⏸ 停止' : '▶ 開始'}
           </button>
         )}

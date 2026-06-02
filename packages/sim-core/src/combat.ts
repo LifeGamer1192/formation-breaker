@@ -7,6 +7,19 @@ import { getEffectiveStats } from './stats'
 import { calcFacingZone, ZONE_LABEL } from './facing'
 import { buildUnitView } from './view'
 import { ATTRIBUTES, armorDefFor } from './attribute'
+import { getTerrainAt, DEMO_TERRAIN } from './movement'
+
+// 塀（wall）が a→b の射線上にあるか（攻撃側=ally は塀越しに攻撃できない・仕様書 L272）
+function wallBetween(a: Vec2, b: Vec2, grid: WorldState['terrain']): boolean {
+  const g = grid ?? DEMO_TERRAIN
+  const d = dist(a, b)
+  const steps = Math.max(1, Math.ceil(d / 3))
+  for (let i = 1; i < steps; i++) {
+    const t = i / steps
+    if (getTerrainAt({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }, g) === 'wall') return true
+  }
+  return false
+}
 
 function findSquad(world: WorldState, unitId: string): SquadState {
   return world.squads.find(s => s.unitIds.includes(unitId))!
@@ -66,11 +79,13 @@ export function tickCombat(world: WorldState, rng: Prng): WorldState {
     const attSa    = squadAlive(attSquad, world.units)
     const attEff   = getEffectiveStats(unit, attSquad, { aliveCount: attSa.length, squadUnits: attSa, tick: world.tick })
 
-    // 射程内の生存敵兵士（兵士単位の距離判定）
+    // 射程内の生存敵兵士（兵士単位の距離判定）。攻撃側=ally は塀越しに攻撃不可
     const enemies = Object.values(units).filter(u => {
       if (!u.alive || u.side === unit.side) return false
       const tv = view.get(u.id)
-      return tv !== undefined && dist(attackerPos, tv.pos) <= unit.range
+      if (tv === undefined || dist(attackerPos, tv.pos) > unit.range) return false
+      if (unit.side === 'ally' && wallBetween(attackerPos, tv.pos, world.terrain)) return false
+      return true
     })
     if (enemies.length === 0) continue
 

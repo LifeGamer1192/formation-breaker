@@ -1,6 +1,6 @@
 import type { LayerEffect, StatId, EffectOp } from './layers'
 import type { FormationType } from './formation'
-import type { Vec2, MovementType } from './geo'
+import type { Vec2, MovementType, TerrainType } from './geo'
 import type { AttrId } from './attribute'
 
 // ─── 技ランタイム（[技レイヤー]・α6）──────────────────────────────
@@ -101,4 +101,7 @@ export interface WorldState {
   log:      string[]
   finished: boolean
   winner:   Side | null
+  // α8: 戦闘ごとの地形（堀塀の破壊で変化）。省略時は DEMO_TERRAIN
+  terrain?:    TerrainType[][]
+  terrainDmg?: Record<string, number>  // "row,col" → 破壊蓄積ダメージ
 }

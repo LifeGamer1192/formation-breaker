@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { WorldState, LayerEffect, AttrId } from '@fb/sim-core'
+import { DEMO_TERRAIN } from '@fb/sim-core'
 import { MapScreen } from './screens/MapScreen'
 import { FormationScreen } from './screens/FormationScreen'
 import { BattleScreen } from './screens/BattleScreen'
@@ -151,6 +152,9 @@ function makeWorldFromSetup(gameState: GameState, battleDef: BattleDef): WorldSt
     log: [],
     finished: false,
     winner: null,
+    // α8: 戦闘ごとに地形を複製（堀塀破壊で変化しても DEMO_TERRAIN を汚さない）
+    terrain: DEMO_TERRAIN.map(row => [...row]),
+    terrainDmg: {},
   }
 }
 

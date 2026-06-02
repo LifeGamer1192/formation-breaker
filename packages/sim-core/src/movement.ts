@@ -23,7 +23,7 @@ export function getTerrainAt(pos: { x: number; y: number }, grid = DEMO_TERRAIN)
   return grid[row]?.[col] ?? 'plain'
 }
 
-function tickSquad(squad: SquadState, allSquads: SquadState[], aliveCount: number): SquadState {
+function tickSquad(squad: SquadState, allSquads: SquadState[], aliveCount: number, grid: TerrainType[][]): SquadState {
   if (squad.moveQueue.length === 0) {
     // 移動なし → 最寄り敵に向く（仕様書: 戦術画面で向きをリアルタイム更新）
     const enemies = allSquads.filter(s => s.side !== squad.side)
@@ -41,7 +41,7 @@ function tickSquad(squad: SquadState, allSquads: SquadState[], aliveCount: numbe
   const target = squad.moveQueue[0]
   const newFacing = angleTo(squad.pos, target)
   // 速度は現在地の地形で決まる（移動タイプ × 地形）
-  const terrain = getTerrainAt(squad.pos)
+  const terrain = getTerrainAt(squad.pos, grid)
   const pct = TERRAIN_SPEED[squad.movementType][terrain] ?? 100
   // 実効陣形（フォールダウン後）の移動速度補正を掛ける（仕様書 L103-110）
   const effFormation = getEffectiveFormation(squad.formation, aliveCount)
@@ -51,7 +51,7 @@ function tickSquad(squad: SquadState, allSquads: SquadState[], aliveCount: numbe
   const newPos = stepToward(squad.pos, target, effectiveSpeed)
 
   // 移動不可地形へは進入しない（手前で停止・向きだけ更新）。α8
-  if (isImpassable(getTerrainAt(newPos))) {
+  if (isImpassable(getTerrainAt(newPos, grid))) {
     return { ...squad, facing: newFacing }
   }
 
@@ -71,14 +71,54 @@ function fillUlt(squad: SquadState): SquadState {
   return next === squad.ultGauge ? squad : { ...squad, ultGauge: next }
 }
 
+// 堀・塀の破壊（攻撃側=ally のみ）。隣接して一定時間で平地化（仕様書 L270）
+const WALL_THRESHOLD = 60   // 破壊に必要な蓄積
+const WALL_RATE = 3         // 隣接1tickあたりの蓄積
+const WALL_RANGE = 13       // 隊中心からセル中心までの破壊有効距離
+function tickTerrainDestruction(world: WorldState, grid: TerrainType[][]): {
+  terrain: TerrainType[][]; terrainDmg: Record<string, number>; log: string[]
+} {
+  const dmg = { ...(world.terrainDmg ?? {}) }
+  const log: string[] = []
+  let newGrid: TerrainType[][] | null = null
+  const allyPos = world.squads
+    .filter(s => s.side === 'ally' && s.unitIds.some(id => world.units[id]?.alive))
+    .map(s => s.pos)
+  if (allyPos.length === 0) return { terrain: grid, terrainDmg: dmg, log }
+
+  for (let r = 0; r < grid.length; r++) {
+    for (let c = 0; c < grid[r].length; c++) {
+      const t = grid[r][c]
+      if (t !== 'moat' && t !== 'wall') continue
+      const center = { x: c * 10 + 5, y: r * 10 + 5 }
+      if (!allyPos.some(p => dist(p, center) <= WALL_RANGE)) continue
+      const key = `${r},${c}`
+      const nd = (dmg[key] ?? 0) + WALL_RATE
+      dmg[key] = nd
+      if (nd >= WALL_THRESHOLD) {
+        if (!newGrid) newGrid = grid.map(row => [...row])
+        newGrid[r][c] = 'plain'
+        log.push(`[T${world.tick}] 攻撃側が${t === 'wall' ? '塀' : '堀'}を破壊した`)
+      }
+    }
+  }
+  return { terrain: newGrid ?? grid, terrainDmg: dmg, log }
+}
+
 export function tickMovement(world: WorldState): WorldState {
+  const grid = world.terrain ?? DEMO_TERRAIN
+  const squads = world.squads.map(s => {
+    // 全ユニット離脱済みの隊は移動しない・ゲージも止める
+    const alive = s.unitIds.filter(id => world.units[id]?.alive).length
+    if (alive === 0) return s
+    return fillUlt(tickSquad(s, world.squads, alive, grid))
+  })
+  const dz = tickTerrainDestruction({ ...world, squads }, grid)
   return {
     ...world,
-    squads: world.squads.map(s => {
-      // 全ユニット離脱済みの隊は移動しない・ゲージも止める
-      const alive = s.unitIds.filter(id => world.units[id]?.alive).length
-      if (alive === 0) return s
-      return fillUlt(tickSquad(s, world.squads, alive))
-    }),
+    squads,
+    terrain: dz.terrain,
+    terrainDmg: dz.terrainDmg,
+    log: dz.log.length ? [...world.log, ...dz.log].slice(-200) : world.log,
   }
 }
