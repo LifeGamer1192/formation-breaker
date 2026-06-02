@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#0a0a14"/>
+  <rect x="40" y="40" width="432" height="432" rx="72" fill="#12122a"/>
+  <!-- crossed swords -->
+  <g stroke="#48aaff" stroke-width="20" stroke-linecap="round" fill="none">
+    <line x1="150" y1="362" x2="360" y2="150"/>
+    <line x1="362" y1="362" x2="152" y2="150"/>
+  </g>
+  <g stroke="#ffcc00" stroke-width="10" stroke-linecap="round">
+    <line x1="150" y1="362" x2="190" y2="362"/>
+    <line x1="150" y1="362" x2="150" y2="322"/>
+    <line x1="362" y1="362" x2="322" y2="362"/>
+    <line x1="362" y1="362" x2="362" y2="322"/>
+  </g>
+  <!-- thunder accent -->
+  <path d="M256 110 L232 250 L270 250 L246 402 L300 230 L262 230 Z" fill="#ffdd00" opacity="0.9"/>
+  <text x="256" y="470" font-family="sans-serif" font-size="56" font-weight="bold" fill="#9cf" text-anchor="middle">FB</text>
+</svg>
