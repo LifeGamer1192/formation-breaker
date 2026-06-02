@@ -26,12 +26,64 @@ export const FORMATION_LABEL: Record<FormationType, string> = {
 // 表示用（条件と効果の説明文）
 export const FORMATION_DESC: Record<FormationType, string> = {
   none:       '効果なし',
-  solo:       'ATK/SPD/DEF -10%',
-  horizontal: 'ATK速度 +20%, DEF -20%',
-  column:     '移動速度 +30%（PoC#3）',
-  square:     'DEF +30%',
-  circle:     'DEF +30%（背面取られにくい）',
-  arrowhead:  'ATK +10%, DEF -10%',
+  solo:       '1人: ATK/SPD/DEF/移動 -10%',
+  horizontal: '2-6人: SPD +20%, DEF -20%',
+  column:     '2-6人: 移動 +30%',
+  square:     '4人: DEF +30%, 移動 -30%',
+  circle:     '4/6人: DEF +30%, 移動 -20%（背面に強い）',
+  arrowhead:  '3/5人: ATK +10%, DEF -10%, 移動 +20%',
+}
+
+// ─── 人数条件（仕様書 L103-110）─────────────────────────────────────
+// 生存兵士数がこの条件を満たさない場合、フォールダウンする
+export const FORMATION_CONDITION: Record<FormationType, (n: number) => boolean> = {
+  none:       n => n >= 1,
+  solo:       n => n === 1,
+  horizontal: n => n >= 2 && n <= 6,
+  column:     n => n >= 2 && n <= 6,
+  square:     n => n === 4,
+  circle:     n => n === 4 || n === 6,
+  arrowhead:  n => n === 3 || n === 5,
+}
+
+// ─── フォールダウン先（条件を満たせなくなった時の陣形）─────────────
+// 方陣/円陣/雁行 → 横陣、横陣/縦列陣 → 単独、単独 → 単独（底）
+export const FORMATION_FALLDOWN: Record<FormationType, FormationType> = {
+  none:       'none',
+  solo:       'solo',
+  horizontal: 'solo',
+  column:     'solo',
+  square:     'horizontal',
+  circle:     'horizontal',
+  arrowhead:  'horizontal',
+}
+
+/**
+ * 生存兵士数に応じた「実効陣形」を返す。
+ * 選択陣形が人数条件を満たさない場合、満たすまでフォールダウンを連鎖させる。
+ */
+export function getEffectiveFormation(formation: FormationType, aliveCount: number): FormationType {
+  let f = formation
+  for (let i = 0; i < 8; i++) {
+    if (FORMATION_CONDITION[f](aliveCount)) return f
+    const next = FORMATION_FALLDOWN[f]
+    if (next === f) return f // これ以上落ちない
+    f = next
+  }
+  return f
+}
+
+// ─── 移動速度補正（仕様書 L103-110、移動速度列）─────────────────────
+// FORMATION_EFFECTS は attack/attackSpeed/defense のみ扱う（EffectiveStats）。
+// 移動速度は SquadState 側なので、別テーブルで movement に適用する。
+export const FORMATION_MOVE_MULT: Record<FormationType, number> = {
+  none:       1.0,
+  solo:       0.9,  // -10%
+  horizontal: 1.0,  // ±0
+  column:     1.3,  // +30%
+  square:     0.7,  // -30%
+  circle:     0.8,  // -20%
+  arrowhead:  1.2,  // +20%
 }
 
 type PartialEffect = Omit<LayerEffect, 'source'>

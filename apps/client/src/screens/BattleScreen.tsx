@@ -3,7 +3,7 @@ import {
   mulberry32, tickCombat, tickMovement, getEffectiveStats,
   FORMATION_LABEL, FORMATION_DESC, DEMO_TERRAIN, dist,
   calcFacingZone, ZONE_LABEL, applyCommand,
-  buildUnitView, SQUAD_SPREAD,
+  buildUnitView, SQUAD_SPREAD, getEffectiveFormation,
 } from '@fb/sim-core'
 import type {
   WorldState, UnitState, SquadState, FormationType,
@@ -164,8 +164,8 @@ function drawBattlefield(ctx: CanvasRenderingContext2D, world: WorldState, selec
   }
 }
 
-function UnitCard({ unit, squad, color }: { unit: UnitState; squad: SquadState; color: string }) {
-  const eff = getEffectiveStats(unit, squad)
+function UnitCard({ unit, squad, color, aliveCount }: { unit: UnitState; squad: SquadState; color: string; aliveCount: number }) {
+  const eff = getEffectiveStats(unit, squad, aliveCount)
   const hpPct = Math.max(0, Math.round(unit.hp / unit.maxHp * 100))
   const gPct  = Math.min(100, Math.round(unit.gauge / unit.gaugeMax * 100))
   const diff  = (b: number, e: number) => e === b ? '' : e > b ? ` ▲${e - b}` : ` ▼${b - e}`
@@ -213,7 +213,10 @@ function SquadCard({ squad, units, color, selected, onSelect, onFormation, isRep
   const terrain = DEMO_TERRAIN
     [Math.min(5, Math.max(0, Math.floor(squad.pos.y / 10)))]
     [Math.min(9, Math.max(0, Math.floor(squad.pos.x / 10)))]
-  const allDead = !squad.unitIds.some(id => units[id]?.alive)
+  const aliveN = squad.unitIds.filter(id => units[id]?.alive).length
+  const allDead = aliveN === 0
+  const effForm = getEffectiveFormation(squad.formation, aliveN)
+  const fellDown = effForm !== squad.formation
   return (
     <div onClick={!allDead ? onSelect : undefined} style={{
       background: selected ? '#0a0a28' : '#0d0d1a',
@@ -248,8 +251,16 @@ function SquadCard({ squad, units, color, selected, onSelect, onFormation, isRep
           ))}
         </div>
       )}
-      <div style={{ fontSize: 9, color: '#666', marginBottom: 4 }}>{FORMATION_DESC[squad.formation]}</div>
-      {squad.unitIds.map(id => units[id] ? <UnitCard key={id} unit={units[id]} squad={squad} color={color} /> : null)}
+      {/* 実効陣形（フォールダウン時は警告表示） */}
+      <div style={{ fontSize: 9, color: fellDown ? '#fa0' : '#666', marginBottom: 4 }}>
+        {fellDown && (
+          <span style={{ color: '#fa0', fontWeight: 'bold' }}>
+            ⚠ {FORMATION_LABEL[squad.formation]}→{FORMATION_LABEL[effForm]}（{aliveN}名）{' '}
+          </span>
+        )}
+        {FORMATION_DESC[effForm]}
+      </div>
+      {squad.unitIds.map(id => units[id] ? <UnitCard key={id} unit={units[id]} squad={squad} color={color} aliveCount={aliveN} /> : null)}
     </div>
   )
 }

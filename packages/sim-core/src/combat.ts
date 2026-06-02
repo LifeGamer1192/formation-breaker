@@ -9,6 +9,11 @@ function findSquad(world: WorldState, unitId: string): SquadState {
   return world.squads.find(s => s.unitIds.includes(unitId))!
 }
 
+// 隊の生存兵士数（実効陣形・フォールダウン判定に使用）。tick開始時の状態で固定。
+function aliveCount(squad: SquadState, units: WorldState['units']): number {
+  return squad.unitIds.filter(id => units[id]?.alive).length
+}
+
 export function tickCombat(world: WorldState, rng: Prng): WorldState {
   if (world.finished) return world
 
@@ -24,7 +29,7 @@ export function tickCombat(world: WorldState, rng: Prng): WorldState {
   for (const unit of Object.values(units)) {
     if (!unit.alive) continue
     const squad = findSquad(world, unit.id)
-    const eff   = getEffectiveStats(unit, squad)
+    const eff   = getEffectiveStats(unit, squad, aliveCount(squad, world.units))
     units[unit.id].gauge += eff.attackSpeed
   }
 
@@ -37,7 +42,7 @@ export function tickCombat(world: WorldState, rng: Prng): WorldState {
     const attackerPos = attView.pos
 
     const attSquad = findSquad(world, unit.id)
-    const attEff   = getEffectiveStats(unit, attSquad)
+    const attEff   = getEffectiveStats(unit, attSquad, aliveCount(attSquad, world.units))
 
     // 射程内の生存敵兵士（兵士単位の距離判定）
     const enemies = Object.values(units).filter(u => {
@@ -51,7 +56,7 @@ export function tickCombat(world: WorldState, rng: Prng): WorldState {
     const targetView= view.get(target.id)!
     const targetPos = targetView.pos
     const defSquad  = findSquad(world, target.id)
-    const defEff    = getEffectiveStats(target, defSquad)
+    const defEff    = getEffectiveStats(target, defSquad, aliveCount(defSquad, world.units))
 
     // 向き判定（攻撃側の兵士座標 vs 守備側の兵士座標・守備兵士自身の向き）
     const zone      = calcFacingZone(attackerPos, targetPos, targetView.facing)

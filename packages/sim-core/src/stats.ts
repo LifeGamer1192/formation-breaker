@@ -2,7 +2,7 @@
 import type { UnitState, SquadState } from './types'
 import type { LayerEffect, EffectiveStats } from './layers'
 import { calcEffectiveStats } from './layers'
-import { FORMATION_EFFECTS } from './formation'
+import { FORMATION_EFFECTS, getEffectiveFormation } from './formation'
 
 function unitBase(unit: UnitState): EffectiveStats {
   return {
@@ -21,7 +21,15 @@ function activeSkills(unit: UnitState): LayerEffect[] {
   })
 }
 
-export function getEffectiveStats(unit: UnitState, squad: SquadState): EffectiveStats {
-  const effects = [...activeSkills(unit), ...FORMATION_EFFECTS[squad.formation]]
+/**
+ * 実効ステータスを返す。
+ * aliveCount を渡すと、人数条件に応じた実効陣形（フォールダウン後）の補正を適用する。
+ * 省略時は選択陣形をそのまま使う（後方互換）。
+ */
+export function getEffectiveStats(unit: UnitState, squad: SquadState, aliveCount?: number): EffectiveStats {
+  const formation = aliveCount == null
+    ? squad.formation
+    : getEffectiveFormation(squad.formation, aliveCount)
+  const effects = [...activeSkills(unit), ...FORMATION_EFFECTS[formation]]
   return calcEffectiveStats(unitBase(unit), effects)
 }
