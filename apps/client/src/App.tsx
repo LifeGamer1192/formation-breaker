@@ -11,6 +11,7 @@ import { makeInitialGameState, resetAllUnits, generateMercenary, MERCENARY_COST 
 import { makeGhostFromSquads, ghostToBattleDef, saveGhost } from './game/ghost'
 import { resolveEquip, gainEquipExp, equippedUids } from './game/equipment'
 import type { OwnedEquip, ResolvedEquip } from './game/equipment'
+import { resolveUltimate } from './game/ultimate'
 import { saveGame } from './game/storage'
 import { C } from './ui/theme'
 
@@ -102,6 +103,9 @@ function makeWorldFromSetup(gameState: GameState, battleDef: BattleDef): WorldSt
 
   const allySquads = gameState.squads.map(s => {
     const re = reBySquad.get(s.id)!
+    // 隊の必殺技はリーダー（先頭ユニット）の ultId から解決
+    const leader = gameState.roster.find(u => u.id === s.unitIds[0])
+    const ult = resolveUltimate(leader?.ultId, leader?.level)
     return {
       id: s.id,
       name: s.name,
@@ -113,6 +117,8 @@ function makeWorldFromSetup(gameState: GameState, battleDef: BattleDef): WorldSt
       moveQueue: [] as any[],
       moveSpeed: 1.0 * (1 + re.moveMultPct / 100),
       movementType: 'forest' as const,
+      ult,
+      ultGauge: 0,
     }
   })
 

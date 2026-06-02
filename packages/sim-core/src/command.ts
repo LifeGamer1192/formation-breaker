@@ -6,12 +6,14 @@
 import type { Vec2 } from './geo'
 import type { FormationType } from './formation'
 import type { WorldState } from './types'
+import { executeUltimate } from './combat'
 
 export type Command =
   | { tick: number; type: 'moveSet';    squadId: string; waypoints: Vec2[]       }
   | { tick: number; type: 'moveAppend'; squadId: string; waypoint:  Vec2         }
   | { tick: number; type: 'moveCancel'; squadId: string                           }
   | { tick: number; type: 'formation';  squadId: string; formation: FormationType }
+  | { tick: number; type: 'ultimate';   squadId: string; targetPos?: Vec2         }
 
 /** 1コマンドを worldState に適用して新 worldState を返す (純粋関数) */
 export function applyCommand(world: WorldState, cmd: Command): WorldState {
@@ -28,6 +30,8 @@ export function applyCommand(world: WorldState, cmd: Command): WorldState {
     case 'formation':
       return { ...world, squads: world.squads.map(s =>
         s.id === cmd.squadId ? { ...s, formation: cmd.formation } : s) }
+    case 'ultimate':
+      return executeUltimate(world, cmd.squadId, cmd.targetPos)
   }
 }
 

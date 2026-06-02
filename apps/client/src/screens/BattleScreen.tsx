@@ -287,6 +287,21 @@ function SquadCard({ squad, units, color, selected, onSelect, onFormation, isRep
         )}
         {FORMATION_DESC[effForm]}
       </div>
+      {/* 必殺技ゲージ（α5） */}
+      {!allDead && squad.ult && (() => {
+        const gPct = Math.min(100, Math.round(((squad.ultGauge ?? 0) / squad.ult.gaugeMax) * 100))
+        const ready = (squad.ultGauge ?? 0) >= squad.ult.gaugeMax
+        return (
+          <div style={{ marginBottom: 4 }}>
+            <div style={{ fontSize: 9, color: ready ? '#fd0' : '#888', marginBottom: 1 }}>
+              {squad.ult.icon} {squad.ult.name} {ready && <b style={{ color: '#fd0' }}>★READY</b>}
+            </div>
+            <div style={{ background: '#222', borderRadius: 2, height: 4 }}>
+              <div style={{ background: ready ? '#fd0' : '#a8f', borderRadius: 2, height: '100%', width: `${gPct}%`, transition: 'width 0.1s' }} />
+            </div>
+          </div>
+        )
+      })()}
       {squad.unitIds.map(id => units[id] ? <UnitCard key={id} unit={units[id]} squad={squad} color={color} squadUnits={aliveUnits} tick={tick} /> : null)}
     </div>
   )
@@ -577,6 +592,23 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd }: BattleScr
             })
           }}>✕ 移動キャンセル</button>
         )}
+        {(() => {
+          if (!selected || mode !== 'live') return null
+          const sq = world.squads.find(s => s.id === selected)
+          if (!sq?.ult) return null
+          const ready = (sq.ultGauge ?? 0) >= sq.ult.gaugeMax
+          return (
+            <button
+              style={btn(!ready, true)}
+              disabled={!ready}
+              onClick={() => setWorld(prev => {
+                const cmd: Command = { tick: prev.tick, type: 'ultimate', squadId: selected }
+                cmdsRef.current.push(cmd)
+                return applyCommand(prev, cmd)
+              })}
+            >{sq.ult.icon} {sq.ult.name}{ready ? '！' : '（充填中）'}</button>
+          )
+        })()}
       </div>
 
       {matchMsg && (

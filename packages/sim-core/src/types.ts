@@ -1,7 +1,25 @@
-import type { LayerEffect } from './layers'
+import type { LayerEffect, StatId, EffectOp } from './layers'
 import type { FormationType } from './formation'
 import type { Vec2, MovementType } from './geo'
 import type { AttrId } from './attribute'
+
+// ─── 必殺技ランタイム（[必殺技レイヤー]・α5）──────────────────────
+// リーダーの必殺技が隊にセットされる。数値解決済みのものを隊に持たせ、
+// sim-core はカタログを知らずに汎用処理する（カタログは client 側）。
+export interface UltimateRuntime {
+  id:            string
+  name:          string
+  icon:          string
+  kind:          'aoeDamage' | 'squadBuff'
+  range:         number            // 発動可能距離（隊中心→対象）
+  radius:        number            // 効果半径（範囲技）
+  ultSpeed:      number            // ゲージ充填速度/tick
+  gaugeMax:      number            // 満タン値
+  attr?:         AttrId            // 攻撃属性（aoeDamage）
+  power?:        number            // 攻撃力（aoeDamage）
+  durationTicks?: number           // 効果持続（squadBuff）
+  buffs?:        { target: StatId; op: EffectOp; value: number }[]  // squadBuff
+}
 
 export type UnitId  = string
 export type SquadId = string
@@ -30,6 +48,8 @@ export interface UnitState {
   attackAttr?:  AttrId
   // α2: 属性別防御加算（防具由来、装備本実装は α3）。例 { thunder: 100 }
   armorDef?:    Partial<Record<AttrId, number>>
+  // α5: この兵士が持つ必殺技ID（リーダー時に隊へセットされる）
+  ultId?:       string
 }
 
 export interface SquadState {
@@ -44,6 +64,9 @@ export interface SquadState {
   moveQueue:    Vec2[]      // 移動予定地点（仕様書L146）
   moveSpeed:    number      // 基礎移動速度（ゲーム単位/tick）
   movementType: MovementType
+  // α5: 隊の必殺技（リーダー由来）と充填ゲージ
+  ult?:         UltimateRuntime
+  ultGauge?:    number
 }
 
 export interface WorldState {

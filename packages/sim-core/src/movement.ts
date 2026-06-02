@@ -58,14 +58,21 @@ function tickSquad(squad: SquadState, allSquads: SquadState[], aliveCount: numbe
   }
 }
 
+// 必殺技ゲージを充填（生存隊のみ・α5）
+function fillUlt(squad: SquadState): SquadState {
+  if (!squad.ult) return squad
+  const next = Math.min(squad.ult.gaugeMax, (squad.ultGauge ?? 0) + squad.ult.ultSpeed)
+  return next === squad.ultGauge ? squad : { ...squad, ultGauge: next }
+}
+
 export function tickMovement(world: WorldState): WorldState {
   return {
     ...world,
     squads: world.squads.map(s => {
-      // 全ユニット離脱済みの隊は移動しない
+      // 全ユニット離脱済みの隊は移動しない・ゲージも止める
       const alive = s.unitIds.filter(id => world.units[id]?.alive).length
       if (alive === 0) return s
-      return tickSquad(s, world.squads, alive)
+      return fillUlt(tickSquad(s, world.squads, alive))
     }),
   }
 }

@@ -1,5 +1,7 @@
 import type { WorldState, SquadState, Side } from './types'
 import type { Prng } from './prng'
+import type { LayerEffect } from './layers'
+import type { Vec2 } from './geo'
 import { dist } from './geo'
 import { getEffectiveStats } from './stats'
 import { calcFacingZone, ZONE_LABEL } from './facing'
@@ -105,4 +107,76 @@ export function tickCombat(world: WorldState, rng: Prng): WorldState {
     finished,
     winner,
   }
+}
+
+// ─── 必殺技の発動（α5）─────────────────────────────────────────────
+// コマンド経由で呼ばれる純粋関数（RNG不使用＝決定論）。
+// ゲージ未満なら何もしない。aoeDamage=範囲ダメージ / squadBuff=隊バフ。
+export function executeUltimate(world: WorldState, squadId: string, targetPos?: Vec2): WorldState {
+  if (world.finished) return world
+  const caster = world.squads.find(s => s.id === squadId)
+  if (!caster || !caster.ult) return world
+  if ((caster.ultGauge ?? 0) < caster.ult.gaugeMax) return world // 未充填
+
+  const ult = caster.ult
+  const view = buildUnitView(world)
+  const units: WorldState['units'] = {}
+  for (const [k, v] of Object.entries(world.units)) units[k] = { ...v }
+  const newLog: string[] = []
+
+  const aliveOf = (sq: SquadState) => sq.unitIds.map(id => world.units[id]).filter(u => u?.alive)
+
+  if (ult.kind === 'aoeDamage') {
+    // 対象中心: 指定座標 or 最寄りの敵隊中心
+    let center = targetPos
+    if (!center) {
+      const enemySquads = world.squads.filter(s => s.side !== caster.side && aliveOf(s).length > 0)
+      if (enemySquads.length === 0) return world
+      const near = enemySquads.reduce((a, b) => dist(caster.pos, a.pos) < dist(caster.pos, b.pos) ? a : b)
+      center = near.pos
+    }
+    // 射程外なら不発（ゲージ温存）
+    if (dist(caster.pos, center) > ult.range + ult.radius) return world
+
+    const attr = ult.attr ?? 'fire'
+    let hit = 0
+    for (const u of Object.values(units)) {
+      if (!u.alive || u.side === caster.side) continue
+      const uv = view.get(u.id)
+      if (!uv || dist(uv.pos, center) > ult.radius) continue
+      const sq = world.squads.find(s => s.unitIds.includes(u.id))!
+      const sa = aliveOf(sq)
+      const defEff = getEffectiveStats(u, sq, { aliveCount: sa.length, squadUnits: sa, tick: world.tick })
+      const attrDef = defEff.defense + armorDefFor(u.armorDef, attr)
+      const dmg = Math.max(1, (ult.power ?? 0) - attrDef)
+      units[u.id].hp = Math.max(0, u.hp - dmg)
+      units[u.id].alive = units[u.id].hp > 0
+      hit++
+    }
+    if (hit === 0) return world // 範囲内に敵なし → 不発
+    newLog.push(`[T${world.tick}] ✨${caster.name}: ${ult.icon}${ult.name}！ ${ATTRIBUTES[attr].icon}範囲${hit}体に命中`)
+  } else if (ult.kind === 'squadBuff') {
+    // 発動隊に時限バフを付与（仕様: 味方1隊。簡易版は自隊対象）
+    const until = world.tick + (ult.durationTicks ?? 200)
+    const buffEffects: LayerEffect[] = (ult.buffs ?? []).map(b => ({
+      layer: 'ultimate', target: b.target, op: b.op, value: b.value,
+      priority: 0, source: ult.name, scope: 'self', untilTick: until,
+    }))
+    for (const u of aliveOf(caster)) {
+      units[u.id] = { ...units[u.id], skills: [...units[u.id].skills, ...buffEffects] }
+    }
+    newLog.push(`[T${world.tick}] ✨${caster.name}: ${ult.icon}${ult.name}！ 隊を強化（${((ult.durationTicks ?? 200) / 20).toFixed(0)}秒）`)
+  }
+
+  // ゲージ消費
+  const squads = world.squads.map(s => s.id === caster.id ? { ...s, ultGauge: 0 } : s)
+
+  // 勝敗再判定（範囲攻撃で決着しうる）
+  const allyAlive  = Object.values(units).some(u => u.alive && u.side === 'ally')
+  const enemyAlive = Object.values(units).some(u => u.alive && u.side === 'enemy')
+  const finished   = !allyAlive || !enemyAlive
+  const winner: Side | null = finished ? (allyAlive ? 'ally' : 'enemy') : null
+  if (finished && winner) newLog.push(winner === 'ally' ? '🏆 味方の勝利！' : '💀 敵の勝利！')
+
+  return { ...world, units, squads, log: [...world.log, ...newLog].slice(-200), finished, winner }
 }
