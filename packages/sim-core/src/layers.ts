@@ -22,13 +22,23 @@ export type EffectOp =
   | 'mul'  // 基本値に対する%増減（例: ATK +10% → value=10）
   | 'set'  // 値を固定（例: 射程を固定値に上書き）
 
+// スキルの適用範囲（仕様書 L201-202）
+//   self   = 自分のみ
+//   squad  = 隊全体（リーダー含む）
+//   leader = リーダー宛（隊のリーダーにのみ）
+export type EffectScope = 'self' | 'squad' | 'leader'
+
 export interface LayerEffect {
   layer:    LayerId
   target:   StatId
   op:       EffectOp
   value:    number
   priority: number  // 同一レイヤー・同一対象の中で最大1つを選ぶ基準
-  source:   string  // デバッグ用ラベル（スキル名・装備名など）
+  source:   string  // 表示・デバッグ用ラベル（スキル名・装備名など）
+  // α4: スキルの適用範囲（省略時 self）
+  scope?:   EffectScope
+  // α4: 時限条件。tick がこの値以上になると効果が切れる（例: 戦闘開始10秒=200）
+  untilTick?: number
 }
 
 export type EffectiveStats = Record<StatId, number>

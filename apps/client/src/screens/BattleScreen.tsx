@@ -10,6 +10,7 @@ import type {
   TerrainType, Vec2, Command, ReplayData,
 } from '@fb/sim-core'
 import type { BattleDef } from '../game/types'
+import { skillMarks } from '../game/skills'
 
 interface DmgFloat { id: string; x: number; y: number; dmg: number; age: number; side: 'ally'|'enemy' }
 
@@ -164,8 +165,9 @@ function drawBattlefield(ctx: CanvasRenderingContext2D, world: WorldState, selec
   }
 }
 
-function UnitCard({ unit, squad, color, aliveCount }: { unit: UnitState; squad: SquadState; color: string; aliveCount: number }) {
-  const eff = getEffectiveStats(unit, squad, aliveCount)
+function UnitCard({ unit, squad, color, squadUnits, tick }: { unit: UnitState; squad: SquadState; color: string; squadUnits: UnitState[]; tick: number }) {
+  const eff = getEffectiveStats(unit, squad, { aliveCount: squadUnits.length, squadUnits, tick })
+  const marks = skillMarks(unit, tick)
   const hpPct = Math.max(0, Math.round(unit.hp / unit.maxHp * 100))
   const gPct  = Math.min(100, Math.round(unit.gauge / unit.gaugeMax * 100))
   const diff  = (b: number, e: number) => e === b ? '' : e > b ? ` ▲${e - b}` : ` ▼${b - e}`
@@ -211,20 +213,34 @@ function UnitCard({ unit, squad, color, aliveCount }: { unit: UnitState; squad: 
             `${ATTRIBUTES[a as keyof typeof ATTRIBUTES].icon}+${v}`).join(' ')}
         </div>
       )}
+      {unit.alive && marks.length > 0 && (
+        <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginTop: 2 }}>
+          {marks.map(m => (
+            <span key={m.name} title={m.name} style={{
+              fontSize: 9, padding: '0 4px', borderRadius: 3,
+              background: m.active ? '#243' : '#222',
+              color: m.active ? '#6f6' : '#666',
+              border: `1px solid ${m.active ? '#4a4' : '#333'}`,
+              opacity: m.active ? 1 : 0.6,
+            }}>{m.icon}{m.name}</span>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
 
 const FORMATIONS: FormationType[] = ['none', 'horizontal', 'column', 'square', 'arrowhead', 'circle', 'solo']
 
-function SquadCard({ squad, units, color, selected, onSelect, onFormation, isReplay }: {
+function SquadCard({ squad, units, color, selected, onSelect, onFormation, isReplay, tick }: {
   squad: SquadState; units: WorldState['units']; color: string
-  selected: boolean; onSelect: () => void; onFormation: (f: FormationType) => void; isReplay: boolean
+  selected: boolean; onSelect: () => void; onFormation: (f: FormationType) => void; isReplay: boolean; tick: number
 }) {
   const terrain = DEMO_TERRAIN
     [Math.min(5, Math.max(0, Math.floor(squad.pos.y / 10)))]
     [Math.min(9, Math.max(0, Math.floor(squad.pos.x / 10)))]
-  const aliveN = squad.unitIds.filter(id => units[id]?.alive).length
+  const aliveUnits = squad.unitIds.map(id => units[id]).filter(u => u?.alive)
+  const aliveN = aliveUnits.length
   const allDead = aliveN === 0
   const effForm = getEffectiveFormation(squad.formation, aliveN)
   const fellDown = effForm !== squad.formation
@@ -271,14 +287,14 @@ function SquadCard({ squad, units, color, selected, onSelect, onFormation, isRep
         )}
         {FORMATION_DESC[effForm]}
       </div>
-      {squad.unitIds.map(id => units[id] ? <UnitCard key={id} unit={units[id]} squad={squad} color={color} aliveCount={aliveN} /> : null)}
+      {squad.unitIds.map(id => units[id] ? <UnitCard key={id} unit={units[id]} squad={squad} color={color} squadUnits={aliveUnits} tick={tick} /> : null)}
     </div>
   )
 }
 
-function ArmyPanel({ title, side, squads, units, color, selected, onSelect, onFormation, isReplay }: {
+function ArmyPanel({ title, side, squads, units, color, selected, onSelect, onFormation, isReplay, tick }: {
   title: string; side: 'ally' | 'enemy'; squads: SquadState[]; units: WorldState['units']; color: string
-  selected: string | null; onSelect: (id: string) => void; onFormation: (sqId: string, f: FormationType) => void; isReplay: boolean
+  selected: string | null; onSelect: (id: string) => void; onFormation: (sqId: string, f: FormationType) => void; isReplay: boolean; tick: number
 }) {
   const alive = squads.filter(s => s.side === side).flatMap(s => s.unitIds).filter(id => units[id]?.alive).length
   return (
@@ -289,7 +305,7 @@ function ArmyPanel({ title, side, squads, units, color, selected, onSelect, onFo
       {squads.filter(s => s.side === side).map(s => (
         <SquadCard key={s.id} squad={s} units={units} color={color}
           selected={selected === s.id} onSelect={() => onSelect(s.id)}
-          onFormation={f => onFormation(s.id, f)} isReplay={isReplay} />
+          onFormation={f => onFormation(s.id, f)} isReplay={isReplay} tick={tick} />
       ))}
     </div>
   )
@@ -595,10 +611,10 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd }: BattleScr
       <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
         <ArmyPanel title="🏴 味方軍" side="ally"  squads={allySquads}  units={world.units} color="#4af"
           selected={selected} onSelect={id => setSelected(s => s === id ? null : id)}
-          onFormation={changeFormation} isReplay={isReplay} />
+          onFormation={changeFormation} isReplay={isReplay} tick={world.tick} />
         <ArmyPanel title="⚔️ 敵軍"   side="enemy" squads={enemySquads} units={world.units} color="#f64"
           selected={selected} onSelect={id => setSelected(s => s === id ? null : id)}
-          onFormation={changeFormation} isReplay={isReplay} />
+          onFormation={changeFormation} isReplay={isReplay} tick={world.tick} />
       </div>
 
       <div style={{ background: '#0d0d1a', borderRadius: 8, padding: 10 }}>

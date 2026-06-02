@@ -2,6 +2,7 @@ import { mulberry32, ATTR_IDS } from '@fb/sim-core'
 import type { FormationType } from '@fb/sim-core'
 import type { RosterUnit, GameState, SquadSetup } from './types'
 import { makeInitialInventory } from './equipment'
+import { SKILLS } from './skills'
 
 // ─── 初期兵士ロスター（カルタゴ陣営）──────────────────────────────
 export function makeInitialRoster(): RosterUnit[] {
@@ -20,7 +21,7 @@ export function makeInitialRoster(): RosterUnit[] {
       gauge: 0,
       alive: true,
       isLeader: true,
-      skills: [],
+      skills: SKILLS.rally.effects,
       flankMod: -30,
       rearMod: -50,
       range: 20,
@@ -41,7 +42,7 @@ export function makeInitialRoster(): RosterUnit[] {
       gauge: 0,
       alive: true,
       isLeader: true,
-      skills: [],
+      skills: SKILLS.ironwall.effects,
       flankMod: -30,
       rearMod: -50,
       range: 20,
@@ -62,7 +63,7 @@ export function makeInitialRoster(): RosterUnit[] {
       gauge: 0,
       alive: true,
       isLeader: false,
-      skills: [],
+      skills: SKILLS.warcry.effects,
       flankMod: -30,
       rearMod: -50,
       range: 20,
@@ -83,7 +84,7 @@ export function makeInitialRoster(): RosterUnit[] {
       gauge: 0,
       alive: true,
       isLeader: false,
-      skills: [],
+      skills: SKILLS.unyielding.effects,
       flankMod: -30,
       rearMod: -50,
       range: 20,
@@ -104,7 +105,7 @@ export function makeInitialRoster(): RosterUnit[] {
       gauge: 0,
       alive: true,
       isLeader: false,
-      skills: [],
+      skills: SKILLS.blitz.effects,
       flankMod: -30,
       rearMod: -50,
       range: 20,

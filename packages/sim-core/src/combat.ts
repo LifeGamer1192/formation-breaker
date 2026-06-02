@@ -10,9 +10,9 @@ function findSquad(world: WorldState, unitId: string): SquadState {
   return world.squads.find(s => s.unitIds.includes(unitId))!
 }
 
-// 隊の生存兵士数（実効陣形・フォールダウン判定に使用）。tick開始時の状態で固定。
-function aliveCount(squad: SquadState, units: WorldState['units']): number {
-  return squad.unitIds.filter(id => units[id]?.alive).length
+// 隊の生存ユニット（tick開始時の状態で固定）。実効陣形・スキル集約に使用。
+function squadAlive(squad: SquadState, units: WorldState['units']) {
+  return squad.unitIds.map(id => units[id]).filter(u => u?.alive)
 }
 
 export function tickCombat(world: WorldState, rng: Prng): WorldState {
@@ -30,7 +30,8 @@ export function tickCombat(world: WorldState, rng: Prng): WorldState {
   for (const unit of Object.values(units)) {
     if (!unit.alive) continue
     const squad = findSquad(world, unit.id)
-    const eff   = getEffectiveStats(unit, squad, aliveCount(squad, world.units))
+    const sa    = squadAlive(squad, world.units)
+    const eff   = getEffectiveStats(unit, squad, { aliveCount: sa.length, squadUnits: sa, tick: world.tick })
     units[unit.id].gauge += eff.attackSpeed
   }
 
@@ -43,7 +44,8 @@ export function tickCombat(world: WorldState, rng: Prng): WorldState {
     const attackerPos = attView.pos
 
     const attSquad = findSquad(world, unit.id)
-    const attEff   = getEffectiveStats(unit, attSquad, aliveCount(attSquad, world.units))
+    const attSa    = squadAlive(attSquad, world.units)
+    const attEff   = getEffectiveStats(unit, attSquad, { aliveCount: attSa.length, squadUnits: attSa, tick: world.tick })
 
     // 射程内の生存敵兵士（兵士単位の距離判定）
     const enemies = Object.values(units).filter(u => {
@@ -57,7 +59,8 @@ export function tickCombat(world: WorldState, rng: Prng): WorldState {
     const targetView= view.get(target.id)!
     const targetPos = targetView.pos
     const defSquad  = findSquad(world, target.id)
-    const defEff    = getEffectiveStats(target, defSquad, aliveCount(defSquad, world.units))
+    const defSa     = squadAlive(defSquad, world.units)
+    const defEff    = getEffectiveStats(target, defSquad, { aliveCount: defSa.length, squadUnits: defSa, tick: world.tick })
 
     // α2: 攻撃属性に対応する防御力を使う
     // 属性別防御力 = 基礎/レイヤー防御(共通) + 攻撃属性に対応する防具防御(armorDef)
