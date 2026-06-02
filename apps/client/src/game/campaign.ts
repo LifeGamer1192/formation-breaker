@@ -120,7 +120,7 @@ export const BATTLE_3: BattleDef = {
 // ─── 中期: 戦場4（分岐A=平原の追撃 / 分岐B=河の防衛線）────────────────
 export const BATTLE_4A: BattleDef = {
   id: 'battle_4a', name: '戦場4A・平原の追撃', allyStartX: 10, enemyStartX: 80, reward: 80,
-  terrain: PLAIN_FIELD,
+  terrain: PLAIN_FIELD, recruitGenerals: 2,   // α20: 戦場3の山場後の援軍（曲線調整）
   enemies: {
     units: [
       makeRoman('r4a_0', 'ローマ剣兵A', 'sword'), makeRoman('r4a_1', 'ローマ剣兵B', 'sword'), makeRoman('r4a_2', 'ローマ剣兵C', 'sword'),
@@ -134,7 +134,7 @@ export const BATTLE_4A: BattleDef = {
 }
 export const BATTLE_4B: BattleDef = {
   id: 'battle_4b', name: '戦場4B・河の防衛線', allyStartX: 10, enemyStartX: 80, reward: 85,
-  terrain: RIVER_FIELD,
+  terrain: RIVER_FIELD, recruitGenerals: 2,   // α20: 援軍（曲線調整）
   enemies: {
     units: [
       makeRoman('r4b_0', 'ローマ剣兵A', 'sword'), makeRoman('r4b_1', 'ローマ剣兵B', 'sword'),
@@ -151,7 +151,7 @@ export const BATTLE_4B: BattleDef = {
 // ─── 中期: 戦場5（合流・湿地の戦象）────────────────────────────────
 export const BATTLE_5: BattleDef = {
   id: 'battle_5', name: '戦場5・湿地の戦象', allyStartX: 10, enemyStartX: 80, reward: 120,
-  terrain: SWAMP_FIELD,
+  terrain: SWAMP_FIELD, recruitGenerals: 2,   // α20: 決戦前の増援（曲線調整）
   enemies: {
     units: [
       makeRoman('r5_0', 'ローマ剣兵A', 'sword'), makeRoman('r5_1', 'ローマ剣兵B', 'sword'), makeRoman('r5_2', 'ローマ剣兵C', 'sword'),
