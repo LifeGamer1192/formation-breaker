@@ -148,7 +148,7 @@ function makeWorldFromSetup(gameState: GameState, battleDef: BattleDef): WorldSt
       facing: 0,
       moveQueue: [] as any[],
       moveSpeed: 1.0 * (1 + (re.moveMultPct + ri.moveMultPct) / 100),
-      movementType: 'forest' as const,
+      movementType: re.moveType ?? 'forest',   // α13: 装備（軍馬の鞍等）で移動タイプ変更
       ult,
       ultGauge: 0,
     }

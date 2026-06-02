@@ -12,13 +12,15 @@ export type TerrainType =
 export const IMPASSABLE: ReadonlySet<TerrainType> = new Set<TerrainType>(['water', 'river', 'highmount', 'moat', 'wall'])
 export function isImpassable(t: TerrainType): boolean { return IMPASSABLE.has(t) }
 
-// 仕様書 L145: 移動タイプごとに地形速度補正(50%〜200%)
-export type MovementType = 'plain' | 'forest'
+// 仕様書 L145/L285: 移動タイプごとに地形速度補正(50%〜200%)
+// plain=歩兵 / forest=森歩き / cavalry=騎乗（平地・砂漠で速く、森・山で遅い）
+export type MovementType = 'plain' | 'forest' | 'cavalry'
 
 /** 地形ごとの移動速度補正 (%)。移動不可地形は 0（進入不可）。 */
 export const TERRAIN_SPEED: Record<MovementType, Record<TerrainType, number>> = {
-  plain:  { plain: 100, forest: 60,  mountain: 50, desert: 70, swamp: 40, water: 0, river: 0, highmount: 0, moat: 0, wall: 0 },
-  forest: { plain: 80,  forest: 100, mountain: 60, desert: 60, swamp: 50, water: 0, river: 0, highmount: 0, moat: 0, wall: 0 },
+  plain:   { plain: 100, forest: 60,  mountain: 50, desert: 70,  swamp: 40, water: 0, river: 0, highmount: 0, moat: 0, wall: 0 },
+  forest:  { plain: 80,  forest: 100, mountain: 60, desert: 60,  swamp: 50, water: 0, river: 0, highmount: 0, moat: 0, wall: 0 },
+  cavalry: { plain: 180, forest: 50,  mountain: 40, desert: 130, swamp: 30, water: 0, river: 0, highmount: 0, moat: 0, wall: 0 },
 }
 
 export function dist(a: Vec2, b: Vec2): number {

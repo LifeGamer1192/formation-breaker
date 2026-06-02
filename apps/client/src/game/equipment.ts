@@ -1,4 +1,4 @@
-import type { AttrId } from '@fb/sim-core'
+import type { AttrId, MovementType } from '@fb/sim-core'
 
 // ─── 装備（武器・防具）─────────────────────────────────────────────
 // 仕様書「装備データ」を本プロトのスケールに調整して定義。
@@ -24,6 +24,7 @@ export interface EquipDef {
   attackSpeedAdd?: number                       // 攻撃速度補正（加算）
   rangeAdd?:       number                       // 射程補正
   moveMultPct?:    number                       // 移動速度補正（%）
+  moveType?:       MovementType                 // α13: 隊の移動タイプ変更（騎乗具等）
   regen?:          number                       // α12: 毎tick回復HP（特殊能力）
   perLevelAtk?:    number                       // +1レベルあたり攻撃力
   perLevelArmor?:  number                       // +1レベルあたり全属性防御
@@ -46,6 +47,7 @@ export const EQUIP_DEFS: Record<string, EquipDef> = {
   eshmunHead:  { id: 'eshmunHead',  name: 'エシュムンの兜', slot: 'head', icon: '💚', armorDef: { slash: 10, pierce: 10, strike: 10 }, regen: 20, moveMultPct: -5 },
   bronzeLegs:  { id: 'bronzeLegs',  name: '青銅の具足', slot: 'legs', icon: '🥾', armorDef: { slash: 5, pierce: 5, strike: 5 }, perLevelArmor: 1 },
   melqartLegs: { id: 'melqartLegs', name: 'メルカルトの具足', slot: 'legs', icon: '🔥', armorDef: { fire: 100 }, moveMultPct: 5, perLevelArmor: 1 },
+  warSaddle:   { id: 'warSaddle',   name: '軍馬の鞍', slot: 'legs', icon: '🐎', moveType: 'cavalry', moveMultPct: 5, perLevelArmor: 0 },
 }
 
 // ─── 所持装備インスタンス（軍単位所有・レベルを持つ）─────────────────
@@ -68,6 +70,7 @@ export interface ResolvedEquip {
   moveMultPct:    number
   regenAdd:       number
   attackAttr?:    AttrId
+  moveType?:      MovementType   // α13: 装備由来の移動タイプ（複数あれば後勝ち）
   armorDef:       Partial<Record<AttrId, number>>
 }
 
@@ -98,6 +101,7 @@ export function resolveEquip(loadout: SquadEquip | undefined, ownedByUid: Map<st
     r.rangeAdd       += def.rangeAdd ?? 0
     r.moveMultPct    += def.moveMultPct ?? 0
     r.regenAdd       += def.regen ?? 0
+    if (def.moveType) r.moveType = def.moveType   // 移動タイプ変更（後勝ち＝スロット順で最後）
     if (slot === 'weapon' && def.attr) r.attackAttr = def.attr
     if (def.armorDef) {
       for (const [a, v] of Object.entries(def.armorDef) as [AttrId, number][]) {
@@ -149,5 +153,6 @@ export function makeInitialInventory(): OwnedEquip[] {
     mkOwned('eshmunHead'),
     mkOwned('bronzeArms'),
     mkOwned('bronzeLegs'),
+    mkOwned('warSaddle'),
   ]
 }
