@@ -7,6 +7,9 @@ import type { TerrainType } from './geo'
 import { FORMATION_MOVE_MULT, getEffectiveFormation } from './formation'
 import { steerToward } from './pathfind'
 
+// 全体移動速度スケール（テンポ調整。1/3で従来より遅く＝視認しやすい）
+export const MOVE_SCALE = 1 / 3
+
 // ─── デモ地形グリッド（10列×6行、各セル10×10ゲーム単位）─────────────
 // 仕様書L165: 山・平地・森・砂漠・沼は移動可
 // スポーン行(y18/38/58 = 行1/3/5)は水平に開通させ、障害物は非スポーン行(0/2/4)へ。
@@ -48,7 +51,7 @@ function tickSquad(squad: SquadState, allSquads: SquadState[], aliveCount: numbe
   // 実効陣形（フォールダウン後）の移動速度補正を掛ける（仕様書 L103-110）
   const effFormation = getEffectiveFormation(squad.formation, aliveCount)
   const formMult = FORMATION_MOVE_MULT[effFormation]
-  const effectiveSpeed = squad.moveSpeed * pct / 100 * formMult
+  const effectiveSpeed = squad.moveSpeed * pct / 100 * formMult * MOVE_SCALE
 
   // α19: A* で堀塀を自動回避しつつ目的地へ（直線が通れば直進）
   const newPos = steerToward(squad.pos, target, effectiveSpeed, grid)
@@ -141,7 +144,7 @@ function aiMove(squad: SquadState, allSquads: SquadState[], units: WorldState['u
   const terrain = getTerrainAt(squad.pos, grid)
   // 移動不可セル上にいる場合は脱出のため通常速度扱い
   const pct = isImpassable(terrain) ? 100 : (TERRAIN_SPEED[squad.movementType][terrain] ?? 100)
-  const speed = squad.moveSpeed * pct / 100 * FORMATION_MOVE_MULT[getEffectiveFormation(squad.formation, aliveCount)]
+  const speed = squad.moveSpeed * pct / 100 * FORMATION_MOVE_MULT[getEffectiveFormation(squad.formation, aliveCount)] * MOVE_SCALE
 
   if (d > desired + 0.5) {
     // α19: A* で堀塀を自動回避して接近（射程手前で停止）
@@ -156,9 +159,35 @@ function aiMove(squad: SquadState, allSquads: SquadState[], units: WorldState['u
   return { ...squad, facing } // 適正距離 → 停止（敵を向く）
 }
 
+// 隊の重なり分離（視認性向上）。中心が近すぎる隊同士を少しだけ反対方向へ押し出す。
+// 射程(10)より小さい SEP=7 なので交戦は維持しつつ、駒の重なりを緩和する。決定論（RNG不使用）。
+const SEP_DIST = 7
+function applySeparation(squads: SquadState[], units: WorldState['units']): SquadState[] {
+  const pos = squads.map(s => ({ ...s.pos }))
+  const alive = squads.map(s => s.unitIds.some(id => units[id]?.alive))
+  for (let i = 0; i < squads.length; i++) {
+    if (!alive[i]) continue
+    for (let j = i + 1; j < squads.length; j++) {
+      if (!alive[j]) continue
+      const dx = pos[j].x - pos[i].x, dy = pos[j].y - pos[i].y
+      const d = Math.hypot(dx, dy)
+      if (d >= SEP_DIST) continue
+      const overlap = SEP_DIST - d
+      // ほぼ同位置なら i/j のインデックス差で決定論的に分離方向を決める
+      const ux = d > 0.01 ? dx / d : 1, uy = d > 0.01 ? dy / d : 0
+      const push = overlap * 0.25   // 「少しだけ」徐々に分離
+      pos[i].x -= ux * push; pos[i].y -= uy * push
+      pos[j].x += ux * push; pos[j].y += uy * push
+    }
+  }
+  return squads.map((s, i) => alive[i]
+    ? { ...s, pos: { x: Math.min(98, Math.max(2, pos[i].x)), y: Math.min(58, Math.max(2, pos[i].y)) } }
+    : s)
+}
+
 export function tickMovement(world: WorldState): WorldState {
   const grid = world.terrain ?? DEMO_TERRAIN
-  const squads = world.squads.map(s => {
+  let squads = world.squads.map(s => {
     // 全ユニット離脱済みの隊は移動しない・ゲージも止める
     const alive = s.unitIds.filter(id => world.units[id]?.alive).length
     if (alive === 0) return s
@@ -169,6 +198,7 @@ export function tickMovement(world: WorldState): WorldState {
       : tickSquad(s, world.squads, alive, grid)
     return fillUlt(moved)
   })
+  squads = applySeparation(squads, world.units)   // 重なり緩和（視認性）
   const dz = tickTerrainDestruction({ ...world, squads }, grid)
   return {
     ...world,

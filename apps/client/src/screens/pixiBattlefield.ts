@@ -22,6 +22,13 @@ const gy = (y: number) => y * SCALE
 export interface DmgFloat { id: string; x: number; y: number; dmg: number; age: number; side: 'ally' | 'enemy' }
 // α18: 必殺技/技エフェクト（拡大リング）。x,y はゲーム座標、age はtick数
 export interface FxEffect { id: string; x: number; y: number; age: number; color: string; radius: number }
+// 攻撃トレーサー（誰→誰の通常攻撃を可視化）。位置は描画時に unitId から解決
+export interface AttackTracer { id: string; fromId: string; toId: string; attr: string; ranged: boolean; age: number }
+
+// 攻撃属性 → トレーサー色
+const ATTR_TRACER_COLOR: Record<string, string> = {
+  slash: '#e8e8f0', pierce: '#7cdcff', strike: '#ffbb66', fire: '#ff5a3c', thunder: '#ffe24a',
+}
 
 export interface RenderState {
   world: WorldState
@@ -32,6 +39,7 @@ export interface RenderState {
   prevWorld?: WorldState   // α18: tick間補間の直前World
   alpha?: number           // α18: 補間係数 0..1（prevWorld→world）
   effects?: FxEffect[]     // α18: 必殺技/技エフェクト
+  tracers?: AttackTracer[] // 通常攻撃の可視化トレーサー
 }
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t
@@ -233,6 +241,29 @@ export class PixiBattlefield {
       })
 
       if (isSelected) this.text(`${isAlly ? '味' : '敵'}${squad.name}`, px, py - 4, 9, baseColor, { ax: 0.5, ay: 1, bold: true })
+    }
+
+    // ── 攻撃トレーサー（誰→誰を可視化）──
+    const TR_LIFE = 9
+    for (const tr of s.tracers ?? []) {
+      const fv = view.get(tr.fromId), tv = view.get(tr.toId)
+      if (!fv || !tv) continue
+      const k = Math.min(1, (tr.age + a) / TR_LIFE)
+      const alpha = (1 - k) * 0.95
+      if (alpha <= 0) continue
+      const col = ATTR_TRACER_COLOR[tr.attr] ?? '#fff'
+      const fx0 = gx(fv.pos.x), fy0 = gy(fv.pos.y), tx0 = gx(tv.pos.x), ty0 = gy(tv.pos.y)
+      if (tr.ranged) {
+        // 弓: 飛翔体が from→to へ進む（線＋先端）
+        const p = Math.min(1, k * 1.8)
+        const px = lerp(fx0, tx0, p), py = lerp(fy0, ty0, p)
+        g.moveTo(fx0, fy0).lineTo(px, py).stroke({ width: 1.5, color: col, alpha: alpha * 0.7 })
+        g.circle(px, py, 2.2).fill({ color: col, alpha })
+      } else {
+        // 近接: 攻撃者→対象の斬撃線＋対象を囲む光
+        g.moveTo(fx0, fy0).lineTo(tx0, ty0).stroke({ width: 2.5, color: col, alpha: alpha * 0.85 })
+        g.circle(tx0, ty0, UNIT_R + 2).stroke({ width: 2, color: col, alpha })
+      }
     }
 
     // ── 必殺技/技エフェクト（拡大リング＋発光）α18 ──

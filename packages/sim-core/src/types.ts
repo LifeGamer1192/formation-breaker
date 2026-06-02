@@ -119,4 +119,15 @@ export interface WorldState {
   // α8: 戦闘ごとの地形（堀塀の破壊で変化）。省略時は DEMO_TERRAIN
   terrain?:    TerrainType[][]
   terrainDmg?: Record<string, number>  // "row,col" → 破壊蓄積ダメージ
+  // 攻撃の可視化（このtickに発生した通常攻撃。描画専用・毎tick再生成＝決定論に影響しない）
+  attacks?:    AttackEvent[]
+}
+
+// このtickに発生した1回の通常攻撃（攻撃者→対象）。描画でトレーサー線を引く。
+export interface AttackEvent {
+  from:   UnitId
+  to:     UnitId
+  attr:   AttrId
+  ranged: boolean   // 射程の長い攻撃（弓等）か
+  dmg:    number
 }

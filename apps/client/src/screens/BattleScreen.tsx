@@ -17,7 +17,7 @@ import { loadSettings, patchSettings } from '../game/settings'
 import { FaceIcon } from '../ui/FaceIcon'
 import { skillMarks } from '../game/skills'
 import { PixiBattlefield } from './pixiBattlefield'
-import type { FxEffect } from './pixiBattlefield'
+import type { FxEffect, AttackTracer } from './pixiBattlefield'
 
 interface DmgFloat { id: string; x: number; y: number; dmg: number; age: number; side: 'ally'|'enemy' }
 
@@ -265,6 +265,7 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd, ultItems, o
   const [matchMsg, setMatchMsg] = useState('')
   const [damageFloats, setDamageFloats] = useState<DmgFloat[]>([])
   const [effects, setEffects] = useState<FxEffect[]>([])   // α18: 必殺技/技エフェクト
+  const [tracers, setTracers] = useState<AttackTracer[]>([])  // 攻撃トレーサー
   const [pixiReady, setPixiReady] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const pixiRef      = useRef<PixiBattlefield | null>(null)
@@ -279,8 +280,8 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd, ultItems, o
   // α18: tick間補間（60fps）用。ステップ直前のWorldとその時刻を保持し RAF で線形補間
   const interpPrevRef = useRef<WorldState | null>(null)
   const lastStepRef   = useRef<number>(0)
-  const renderStateRef = useRef({ world, selected: null as string | null, mode: 'deploy' as typeof mode, damageFloats, speed, effects })
-  renderStateRef.current = { world, selected, mode, damageFloats, speed, effects }
+  const renderStateRef = useRef({ world, selected: null as string | null, mode: 'deploy' as typeof mode, damageFloats, speed, effects, tracers })
+  renderStateRef.current = { world, selected, mode, damageFloats, speed, effects, tracers }
   // 必殺技/技エフェクトを発生（ゲーム座標）
   const spawnFx = (x: number, y: number, color: string, radius = 18) =>
     setEffects(prev => [...prev.filter(f => f.age < 16), { id: `${x},${y},${performance.now()}`, x, y, age: 0, color, radius }])
@@ -313,7 +314,7 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd, ultItems, o
     const loop = () => {
       const pb = pixiRef.current
       if (pb) {
-        const { world, selected, mode, damageFloats, speed, effects } = renderStateRef.current
+        const { world, selected, mode, damageFloats, speed, effects, tracers } = renderStateRef.current
         const animating = (mode === 'live' || mode === 'replaying') && !reduceMotion
         const dur = 50 / Math.max(1, speed)   // 1ステップの実時間(ms)
         const alpha = animating && interpPrevRef.current
@@ -328,6 +329,7 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd, ultItems, o
           isDeploy: mode === 'deploy',
           damageFloats,
           effects,
+          tracers,
         })
       }
       raf = requestAnimationFrame(loop)
@@ -364,6 +366,11 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd, ultItems, o
     const aged = damageFloats.map(f => ({ ...f, age: f.age + 1 })).filter(f => f.age < 25)
     setDamageFloats([...aged, ...newFloats])
     setEffects(prev => prev.map(e => ({ ...e, age: e.age + 1 })).filter(e => e.age < 16))  // α18: エフェクト加齢
+    // 攻撃トレーサー: このtickの攻撃をスポーン＋加齢（誰→誰を可視化）
+    const newTracers = (world.attacks ?? []).map((at, i) => ({
+      id: `${at.from}-${at.to}-${world.tick}-${i}`, fromId: at.from, toId: at.to, attr: at.attr, ranged: at.ranged, age: 0,
+    }))
+    setTracers(prev => [...prev.map(t => ({ ...t, age: t.age + 1 })).filter(t => t.age < 9), ...newTracers])
 
     prevWorldRef.current = world
   }, [world, mode, damageFloats])

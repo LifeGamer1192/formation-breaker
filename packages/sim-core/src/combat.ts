@@ -1,4 +1,4 @@
-import type { WorldState, SquadState, Side, UltimateRuntime } from './types'
+import type { WorldState, SquadState, Side, UltimateRuntime, AttackEvent } from './types'
 import type { Prng } from './prng'
 import type { LayerEffect } from './layers'
 import type { Vec2 } from './geo'
@@ -95,6 +95,7 @@ export function tickCombat(world: WorldState, rng: Prng): WorldState {
   for (const [k, v] of Object.entries(world.units)) units[k] = { ...v }
 
   const newLog: string[] = []
+  const attackEvents: AttackEvent[] = []   // このtickの通常攻撃（描画トレーサー用）
   // 学び（α13）: このtickに各隊が「最後に交戦した敵隊」を記録（後勝ち）。攻撃の授受で交戦成立。
   const engaged: Record<string, string> = {}
 
@@ -165,6 +166,7 @@ export function tickCombat(world: WorldState, rng: Prng): WorldState {
     units[target.id].hp    = newHp
     units[target.id].alive = newHp > 0
     units[unit.id].gauge  -= unit.gaugeMax
+    attackEvents.push({ from: unit.id, to: target.id, attr: atkAttr, ranged: unit.range >= 20, dmg })
     // 学び: 攻撃側↔守備側の隊が相互に交戦（後勝ち＝このtickで最後に処理された相手が残る）
     engaged[attSquad.id] = defSquad.id
     engaged[defSquad.id] = attSquad.id
@@ -250,6 +252,7 @@ export function tickCombat(world: WorldState, rng: Prng): WorldState {
     log:      [...world.log, ...newLog].slice(-200),
     finished: outcome.finished,
     winner:   outcome.winner,
+    attacks:  attackEvents,
   }
 }
 

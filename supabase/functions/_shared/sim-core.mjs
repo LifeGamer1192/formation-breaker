@@ -380,6 +380,7 @@ function steerToward(pos, goal, speed, grid) {
 }
 
 // packages/sim-core/src/movement.ts
+var MOVE_SCALE = 1 / 3;
 var DEMO_TERRAIN = [
   ["river", "river", "plain", "plain", "plain", "wall", "plain", "mountain", "plain", "plain"],
   // 行0: 障害物
@@ -417,7 +418,7 @@ function tickSquad(squad, allSquads, aliveCount, grid) {
   const pct = isImpassable(terrain) ? 100 : TERRAIN_SPEED[squad.movementType][terrain] ?? 100;
   const effFormation = getEffectiveFormation(squad.formation, aliveCount);
   const formMult = FORMATION_MOVE_MULT[effFormation];
-  const effectiveSpeed = squad.moveSpeed * pct / 100 * formMult;
+  const effectiveSpeed = squad.moveSpeed * pct / 100 * formMult * MOVE_SCALE;
   const newPos = steerToward(squad.pos, target, effectiveSpeed, grid);
   const newFacing = newPos.x === squad.pos.x && newPos.y === squad.pos.y ? angleTo(squad.pos, target) : angleTo(squad.pos, newPos);
   const arrived = dist(newPos, target) < effectiveSpeed * 0.6;
@@ -487,7 +488,7 @@ function aiMove(squad, allSquads, units, aliveCount, grid) {
   const desired = Math.max(2, squadRange(squad, units) - 2);
   const terrain = getTerrainAt(squad.pos, grid);
   const pct = isImpassable(terrain) ? 100 : TERRAIN_SPEED[squad.movementType][terrain] ?? 100;
-  const speed = squad.moveSpeed * pct / 100 * FORMATION_MOVE_MULT[getEffectiveFormation(squad.formation, aliveCount)];
+  const speed = squad.moveSpeed * pct / 100 * FORMATION_MOVE_MULT[getEffectiveFormation(squad.formation, aliveCount)] * MOVE_SCALE;
   if (d > desired + 0.5) {
     const np = steerToward(squad.pos, target.pos, Math.min(speed, d - desired), grid);
     const nf = np.x === squad.pos.x && np.y === squad.pos.y ? facing : angleTo(squad.pos, np);
@@ -498,15 +499,38 @@ function aiMove(squad, allSquads, units, aliveCount, grid) {
   }
   return { ...squad, facing };
 }
+var SEP_DIST = 7;
+function applySeparation(squads, units) {
+  const pos = squads.map((s) => ({ ...s.pos }));
+  const alive = squads.map((s) => s.unitIds.some((id) => units[id]?.alive));
+  for (let i = 0; i < squads.length; i++) {
+    if (!alive[i]) continue;
+    for (let j = i + 1; j < squads.length; j++) {
+      if (!alive[j]) continue;
+      const dx = pos[j].x - pos[i].x, dy = pos[j].y - pos[i].y;
+      const d = Math.hypot(dx, dy);
+      if (d >= SEP_DIST) continue;
+      const overlap = SEP_DIST - d;
+      const ux = d > 0.01 ? dx / d : 1, uy = d > 0.01 ? dy / d : 0;
+      const push = overlap * 0.25;
+      pos[i].x -= ux * push;
+      pos[i].y -= uy * push;
+      pos[j].x += ux * push;
+      pos[j].y += uy * push;
+    }
+  }
+  return squads.map((s, i) => alive[i] ? { ...s, pos: { x: Math.min(98, Math.max(2, pos[i].x)), y: Math.min(58, Math.max(2, pos[i].y)) } } : s);
+}
 function tickMovement(world) {
   const grid = world.terrain ?? DEMO_TERRAIN;
-  const squads = world.squads.map((s) => {
+  let squads = world.squads.map((s) => {
     const alive = s.unitIds.filter((id) => world.units[id]?.alive).length;
     if (alive === 0) return s;
     if (s.moveDisabledUntil != null && world.tick < s.moveDisabledUntil) return fillUlt(s);
     const moved = s.ai ? aiMove(s, world.squads, world.units, alive, grid) : tickSquad(s, world.squads, alive, grid);
     return fillUlt(moved);
   });
+  squads = applySeparation(squads, world.units);
   const dz = tickTerrainDestruction({ ...world, squads }, grid);
   return {
     ...world,
@@ -589,6 +613,7 @@ function tickCombat(world, rng) {
   const units = {};
   for (const [k, v] of Object.entries(world.units)) units[k] = { ...v };
   const newLog = [];
+  const attackEvents = [];
   const engaged = {};
   for (const unit of Object.values(units)) {
     if (!unit.alive) continue;
@@ -635,6 +660,7 @@ function tickCombat(world, rng) {
     units[target.id].hp = newHp;
     units[target.id].alive = newHp > 0;
     units[unit.id].gauge -= unit.gaugeMax;
+    attackEvents.push({ from: unit.id, to: target.id, attr: atkAttr, ranged: unit.range >= 20, dmg });
     engaged[attSquad.id] = defSquad.id;
     engaged[defSquad.id] = attSquad.id;
   }
@@ -711,7 +737,8 @@ function tickCombat(world, rng) {
     units,
     log: [...world.log, ...newLog].slice(-200),
     finished: outcome.finished,
-    winner: outcome.winner
+    winner: outcome.winner,
+    attacks: attackEvents
   };
 }
 function executeUltimate(world, squadId, targetPos) {
@@ -955,6 +982,7 @@ export {
   FORMATION_MOVE_MULT,
   FORMATION_SLOTS,
   IMPASSABLE,
+  MOVE_SCALE,
   SQUAD_SPREAD,
   TERRAIN_SPEED,
   ZONE_LABEL,
