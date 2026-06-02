@@ -90,6 +90,7 @@ function makeWorldFromSetup(gameState: GameState, battleDef: BattleDef): WorldSt
           armorDef: mergeArmor(mergeArmor(rosterUnit.armorDef, re.armorDef), ri.armorDef),
           regen: (re.regenAdd + ri.regenAdd) || undefined,
           techniques: rosterUnit.techniques?.map(t => ({ ...t, gauge: 0 })),
+          canLearn: rosterUnit.canLearn,   // α13: 学び（隊スキル）
         }
       }
     }

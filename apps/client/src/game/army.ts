@@ -121,6 +121,7 @@ export function makeInitialRoster(): RosterUnit[] {
       alive: true,
       isLeader: false,
       skills: SKILLS.blitz.effects,
+      canLearn: true,   // α13: 「学び」隊スキル（交戦した敵隊のスキルをコピー）
       flankMod: -30,
       rearMod: -50,
       range: 10,

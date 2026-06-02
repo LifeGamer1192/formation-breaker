@@ -47,6 +47,44 @@ function checkOutcome(units: WorldState['units']): { finished: boolean; winner: 
   return { finished: true, winner: 'enemy', reason: ally.byCommander ? 'commander' : 'wipe' }
 }
 
+// 学び（α13・仕様 L418）: 直近60秒以内で最後に交戦した隊のスキルをコピーして実行する。
+const LEARN_DURATION = 1200  // 60秒 @ 20Hz
+const SKILL_LAYERS = new Set(['personalSkill', 'generalSkill', 'leaderSkill', 'squadSkill'])
+
+// engaged[隊ID]=このtickに最後に交戦した敵隊ID。学び持ちの隊にだけ、相手のスキルを
+// squadSkill レイヤー（source='学び'・untilTick=現tick+60秒）として貼り替える。
+function applyLearn(world: WorldState, units: WorldState['units'], engaged: Record<string, string>): void {
+  for (const sl of world.squads) {
+    const myUnits = sl.unitIds.map(id => units[id]).filter(u => u?.alive)
+    if (!myUnits.some(u => u.canLearn)) continue          // 学び持ちが生存していない隊はスキップ
+    const enemyId = engaged[sl.id]
+    if (!enemyId) continue                                 // このtickに未交戦 → 既存の学びは untilTick 任せ
+    const enemy = world.squads.find(s => s.id === enemyId)
+    if (!enemy) continue
+
+    // 相手隊のスキル（ステ系スキルレイヤーのみ・他者の学びは連鎖させない）を収集
+    const copied: LayerEffect[] = []
+    for (const id of enemy.unitIds) {
+      const eu = world.units[id]
+      if (!eu?.alive) continue
+      for (const sk of eu.skills) {
+        if (!SKILL_LAYERS.has(sk.layer)) continue
+        if (sk.source === '学び') continue
+        if (sk.untilTick != null && world.tick >= sk.untilTick) continue
+        copied.push({
+          layer: 'squadSkill', target: sk.target, op: sk.op, value: sk.value,
+          priority: sk.priority ?? 0, source: '学び', scope: 'squad',
+          untilTick: world.tick + LEARN_DURATION,
+        })
+      }
+    }
+    // 学び隊の全生存兵に貼り替え（旧 source='学び' を除去 → 新規付与）。同一レイヤー/対象は集約で重複しない
+    for (const u of myUnits) {
+      units[u.id] = { ...units[u.id], skills: [...units[u.id].skills.filter(s => s.source !== '学び'), ...copied] }
+    }
+  }
+}
+
 export function tickCombat(world: WorldState, rng: Prng): WorldState {
   if (world.finished) return world
 
@@ -57,6 +95,8 @@ export function tickCombat(world: WorldState, rng: Prng): WorldState {
   for (const [k, v] of Object.entries(world.units)) units[k] = { ...v }
 
   const newLog: string[] = []
+  // 学び（α13）: このtickに各隊が「最後に交戦した敵隊」を記録（後勝ち）。攻撃の授受で交戦成立。
+  const engaged: Record<string, string> = {}
 
   // ① 攻撃ゲージ充填（実効 attackSpeed を使用）＋リジェネ（α12）
   for (const unit of Object.values(units)) {
@@ -125,7 +165,14 @@ export function tickCombat(world: WorldState, rng: Prng): WorldState {
     units[target.id].hp    = newHp
     units[target.id].alive = newHp > 0
     units[unit.id].gauge  -= unit.gaugeMax
+    // 学び: 攻撃側↔守備側の隊が相互に交戦（後勝ち＝このtickで最後に処理された相手が残る）
+    engaged[attSquad.id] = defSquad.id
+    engaged[defSquad.id] = attSquad.id
   }
+
+  // ②.5 学び（α13）: 学び持ちの隊が、このtickに交戦した敵隊のスキルを squadSkill としてコピー。
+  // untilTick で 60秒後に自動失効（その間に再交戦すれば更新される）。重複防止のため source='学び' を貼り替える。
+  applyLearn(world, units, engaged)
 
   // ③ 技（technique）: 固有ゲージ充填 → 有効かつ満タンを優先順位順に1つ自動発動
   for (const unit of Object.values(units)) {

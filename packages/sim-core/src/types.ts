@@ -80,6 +80,8 @@ export interface UnitState {
   regen?:       number
   // α13: 通常攻撃属性の時限上書き（必殺技 attrChange 由来。tick < untilTick の間だけ有効）
   attrOverride?: { attr: AttrId; untilTick: number }
+  // α13: 「学び」隊スキル。交戦した敵隊のスキルをコピーして実行できる（仕様 L418）
+  canLearn?:    boolean
 }
 
 export interface SquadState {
