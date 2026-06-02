@@ -129,9 +129,48 @@ export const BATTLE_2: BattleDef = {
   },
 }
 
-// ─── キャンペーン戦場一覧──────────────────────────────────────────
-export const CAMPAIGN = [BATTLE_0, BATTLE_1, BATTLE_2]
-
-export function getBattleDef(battleIndex: number): BattleDef {
-  return CAMPAIGN[battleIndex] ?? BATTLE_0
+// ─── 戦場1B: 山道の奇襲（分岐先）─────────────────────────────────
+export const BATTLE_1B: BattleDef = {
+  id: 'battle_1b',
+  name: '山道の奇襲',
+  allyStartX: 10,
+  enemyStartX: 80,
+  reward: 55,
+  recruitGenerals: 2,
+  enemies: {
+    units: [
+      makeEnemyUnit('enemy_1b_0', 'ローマ精鋭A', { hp: 80, maxHp: 80, attack: 66, defense: 60 }),
+      makeEnemyUnit('enemy_1b_1', 'ローマ精鋭B', { hp: 78, maxHp: 78, attack: 64, defense: 58 }),
+      makeEnemyUnit('enemy_1b_2', '雷鎧ローマ兵C', { hp: 82, maxHp: 82, attack: 62, defense: 56, armorDef: { ...THUNDER_ARMOR } }),
+    ],
+    squads: [
+      { id: 'enemy_squad_1b_a', name: '敵前衛', unitIds: ['enemy_1b_0', 'enemy_1b_1'], formation: 'square' },
+      { id: 'enemy_squad_1b_b', name: '敵後衛', unitIds: ['enemy_1b_2'], formation: 'solo' },
+    ],
+  },
 }
+
+// ─── キャンペーン（ノードグラフ・α8）────────────────────────────────
+// 一本道 → 分岐（中期）→ 合流。後戻りはできない（frontier で制御）。
+export interface MapNode {
+  id:     string
+  battle: BattleDef
+  next:   string[]   // クリア後に選べる次ノード
+  col:    number     // レイアウト: 進行の深さ
+  row:    number     // レイアウト: 分岐レーン
+}
+
+export const MAP_NODES: Record<string, MapNode> = {
+  n0:  { id: 'n0',  battle: BATTLE_0,  next: ['n1a', 'n1b'], col: 0, row: 1 },
+  n1a: { id: 'n1a', battle: BATTLE_1,  next: ['n2'],         col: 1, row: 0 },
+  n1b: { id: 'n1b', battle: BATTLE_1B, next: ['n2'],         col: 1, row: 2 },
+  n2:  { id: 'n2',  battle: BATTLE_2,  next: [],             col: 2, row: 1 },
+}
+export const START_NODE = 'n0'
+
+export function getNode(id: string): MapNode | undefined {
+  return MAP_NODES[id]
+}
+
+// 互換: 旧 CAMPAIGN（インデックス）参照が残る箇所向け
+export const CAMPAIGN = [BATTLE_0, BATTLE_1, BATTLE_2]

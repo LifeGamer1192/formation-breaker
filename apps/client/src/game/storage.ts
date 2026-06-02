@@ -1,6 +1,7 @@
 import type { GameState } from './types'
 import { makeInitialGameState } from './army'
 import { makeInitialInventory } from './equipment'
+import { START_NODE } from './campaign'
 
 const STORAGE_KEY = 'fb-game-state'
 
@@ -18,13 +19,15 @@ export function loadGame(): GameState | null {
     if (!data) return null
     const parsed = JSON.parse(data) as Partial<GameState>
     // マイグレーション: 旧セーブに無いフィールドを補完
+    // 旧 battleIndex 形式のセーブはキャンペーン進捗のみ初期化（roster等は保持）
     return {
-      battleIndex: parsed.battleIndex ?? 0,
       roster:      parsed.roster ?? [],
       squads:      parsed.squads ?? [],
       tokens:      parsed.tokens ?? 0,
       inventory:   parsed.inventory ?? makeInitialInventory(),
       recruitedBattles: parsed.recruitedBattles ?? [],
+      clearedNodes: parsed.clearedNodes ?? [],
+      frontier:     parsed.frontier ?? [START_NODE],
       log:         parsed.log ?? [],
     }
   } catch (e) {

@@ -4,6 +4,7 @@ import type { RosterUnit, GameState, SquadSetup } from './types'
 import { makeInitialInventory } from './equipment'
 import { SKILLS } from './skills'
 import { makeTechniques } from './technique'
+import { START_NODE } from './campaign'
 
 // ─── 初期兵士ロスター（カルタゴ陣営）──────────────────────────────
 export function makeInitialRoster(): RosterUnit[] {
@@ -218,12 +219,13 @@ export function resetAllUnits(roster: RosterUnit[]): RosterUnit[] {
 // ─── 初期 GameState 作成────────────────────────────────────────────
 export function makeInitialGameState(): GameState {
   return {
-    battleIndex: 0,
     roster: makeInitialRoster(),
     squads: [],
     tokens: 0,
     inventory: makeInitialInventory(),
     recruitedBattles: [],
+    clearedNodes: [],
+    frontier: [START_NODE],
     log: ['キャンペーン開始'],
   }
 }

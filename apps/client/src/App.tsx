@@ -6,7 +6,7 @@ import { BattleScreen } from './screens/BattleScreen'
 import { ResultScreen } from './screens/ResultScreen'
 import { GhostScreen } from './screens/GhostScreen'
 import type { GameState, RosterUnit, SquadSetup, BattleDef, Ghost } from './game/types'
-import { getBattleDef } from './game/campaign'
+import { getNode } from './game/campaign'
 import { makeInitialGameState, resetAllUnits, generateMercenary, MERCENARY_COST, makeRecruitGenerals, avgLevel } from './game/army'
 import { makeGhostFromSquads, ghostToBattleDef, saveGhost } from './game/ghost'
 import { resolveEquip, gainEquipExp, equippedUids } from './game/equipment'
@@ -162,16 +162,20 @@ export default function App() {
   const [world, setWorld] = useState<WorldState | null>(null)
   const [battleDef, setBattleDef] = useState<BattleDef | null>(null)
   const [matchType, setMatchType] = useState<'campaign' | 'ghost'>('campaign')
+  const [currentNodeId, setCurrentNodeId] = useState<string | null>(null)
 
-  // 各画面遷移
-  const handleSelectBattle = (idx: number) => {
+  // 各画面遷移（マップ分岐ノードを選択）
+  const handleSelectNode = (nodeId: string) => {
+    const node = getNode(nodeId)
+    if (!node) return
     setMatchType('campaign')
-    const battle = getBattleDef(idx)
+    setCurrentNodeId(nodeId)
+    const battle = node.battle
     // α7: 初回突入時の強制加入（援軍・一般）。入隊レベル=平均、再付与は防止
     let gs = gameState
     if (battle.recruitGenerals && !gs.recruitedBattles.includes(battle.id)) {
       const lvl = avgLevel(gs.roster)
-      const seed = idx * 9973 + gs.roster.length * 17 + 3
+      const seed = gs.clearedNodes.length * 9973 + gs.roster.length * 17 + 3
       const recruits = makeRecruitGenerals(seed, battle.recruitGenerals, lvl)
       gs = {
         ...gs,
@@ -233,17 +237,29 @@ export default function App() {
   }
 
   const handleResultContinue = (updatedRoster: RosterUnit[], earnedTokens: number) => {
-    // ゴースト対戦は campaign 進捗（battleIndex）を進めない
     const isGhost = matchType === 'ghost'
     // 出撃した隊が装備していた装備に経験値を付与（レベルアップ）
     const usedUids = equippedUids(gameState.squads)
     const newInventory = gainEquipExp(gameState.inventory, usedUids)
+
+    // キャンペーン: クリアしたノードを記録し、frontier を次ノードへ（後戻り不可）
+    let clearedNodes = gameState.clearedNodes
+    let frontier = gameState.frontier
+    if (!isGhost && currentNodeId) {
+      const node = getNode(currentNodeId)
+      if (node && !clearedNodes.includes(currentNodeId)) {
+        clearedNodes = [...clearedNodes, currentNodeId]
+        frontier = node.next.filter(n => !clearedNodes.includes(n))
+      }
+    }
+
     const newGameState: GameState = {
       ...gameState,
       roster: updatedRoster,
       tokens: gameState.tokens + earnedTokens,
       inventory: newInventory,
-      battleIndex: isGhost ? gameState.battleIndex : gameState.battleIndex + 1,
+      clearedNodes,
+      frontier,
       squads: [],
     }
     setGameState(newGameState)
@@ -255,7 +271,7 @@ export default function App() {
   const handleHire = () => {
     if (gameState.tokens < MERCENARY_COST) return
     // ロスター数とトークン残から擬似シードを生成（ID 衝突回避のため roster.length も加味）
-    const seed = gameState.tokens * 7919 + gameState.roster.length * 31 + gameState.battleIndex
+    const seed = gameState.tokens * 7919 + gameState.roster.length * 31 + gameState.clearedNodes.length
     const merc = generateMercenary(seed, avgLevel(gameState.roster))
     const newGameState: GameState = {
       ...gameState,
@@ -284,8 +300,9 @@ export default function App() {
     <div style={{ background: C.bg, color: C.text, minHeight: '100vh', fontFamily: 'sans-serif' }}>
       {screen === 'map' && (
         <MapScreen
-          currentBattleIndex={gameState.battleIndex}
-          onSelectBattle={handleSelectBattle}
+          clearedNodes={gameState.clearedNodes}
+          frontier={gameState.frontier}
+          onSelectNode={handleSelectNode}
           onOpenGhost={handleOpenGhost}
         />
       )}

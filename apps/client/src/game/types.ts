@@ -36,12 +36,14 @@ export interface BattleDef {
 
 // ─── ゲームステート（persistence 対象）──────────────────────────
 export interface GameState {
-  battleIndex: number         // 0〜2（現在のキャンペーン進捗）
   roster:      RosterUnit[]   // 所持兵士一覧
   squads:      SquadSetup[]   // 現在の編成（最大5隊）
   tokens:      number         // 所持トークン（戦闘報酬で増え、傭兵購入で減る）
   inventory:   OwnedEquip[]   // α3: 軍所有の装備インベントリ
   recruitedBattles: string[]  // α7: 強制加入を適用済みの戦場ID（再付与防止）
+  // α8: マップ分岐（後戻り不可）
+  clearedNodes: string[]      // クリア済みノードID
+  frontier:     string[]      // 現在選択可能なノードID（クリアで次へ更新）
   log:         string[]       // キャンペーンログ
 }
 
