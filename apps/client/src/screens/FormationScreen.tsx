@@ -10,7 +10,7 @@ import { Button } from '../ui/Button'
 
 export interface FormationScreenProps {
   roster: RosterUnit[]
-  tokens: number
+  gold: number
   inventory: OwnedEquip[]
   onHire: () => void
   onDelete: (unitId: string) => void
@@ -20,7 +20,7 @@ export interface FormationScreenProps {
 
 const FORMATIONS: FormationType[] = ['none', 'horizontal', 'column', 'square', 'arrowhead', 'circle', 'solo']
 
-export function FormationScreen({ roster, tokens, inventory, onHire, onDelete, onStart, onSaveGhost }: FormationScreenProps) {
+export function FormationScreen({ roster, gold, inventory, onHire, onDelete, onStart, onSaveGhost }: FormationScreenProps) {
   const [ghostSaved, setGhostSaved] = useState(false)
   const [squads, setSquads] = useState<SquadSetup[]>([
     { id: 'squad-1', name: '前衛', unitIds: [], formation: 'horizontal' },
@@ -110,7 +110,7 @@ export function FormationScreen({ roster, tokens, inventory, onHire, onDelete, o
           background: C.card, borderRadius: 16, padding: '4px 12px',
           fontSize: 13, fontWeight: 'bold', color: C.gold, border: `1px solid ${C.gold}44`
         }}>
-          🪙 {tokens}
+          💰 {gold}
         </span>
       </div>
 
@@ -121,11 +121,11 @@ export function FormationScreen({ roster, tokens, inventory, onHire, onDelete, o
             <h2 style={{ fontSize: 14, color: C.warn }}>📋 兵士一覧</h2>
             <Button
               variant="accent"
-              disabled={tokens < MERCENARY_COST}
+              disabled={gold < MERCENARY_COST}
               onClick={onHire}
               style={{ fontSize: 11, padding: '4px 10px' }}
             >
-              🪙 傭兵を雇う（{MERCENARY_COST}）
+              💰 傭兵を雇う（{MERCENARY_COST}）
             </Button>
           </div>
           <div

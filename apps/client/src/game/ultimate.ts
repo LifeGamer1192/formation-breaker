@@ -8,21 +8,22 @@ export interface UltCatalogEntry extends UltimateRuntime {
   perLevelPower?: number   // aoeDamage のレベル成長
 }
 
+// 数値は仕様書「必殺技データ」準拠（α11リスケール）
 export const ULTIMATES: Record<string, UltCatalogEntry> = {
   raikou: {
     id: 'raikou', name: '雷光', icon: '🌩️', kind: 'aoeDamage',
-    attr: 'thunder', power: 90, range: 60, radius: 18,
-    ultSpeed: 1.6, gaugeMax: 100, perLevelPower: 5,
-    desc: '最寄りの敵隊へ落雷。範囲内の敵に雷ダメージ',
+    attr: 'thunder', power: 800, range: 25, radius: 15,
+    ultSpeed: 2, gaugeMax: 100, perLevelPower: 20,
+    desc: '指定地点に落雷。範囲内の敵に雷ダメージ（攻撃力800）',
   },
   senjin: {
     id: 'senjin', name: '戦陣鼓舞', icon: '📣', kind: 'squadBuff',
-    range: 50, radius: 0, ultSpeed: 1.4, gaugeMax: 100, durationTicks: 200,
+    range: 50, radius: 0, ultSpeed: 1, gaugeMax: 100, durationTicks: 200,
     buffs: [
-      { target: 'attack', op: 'mul', value: 30 },
+      { target: 'attack', op: 'add', value: 50 },
       { target: 'attackSpeed', op: 'mul', value: 10 },
     ],
-    desc: '一定時間、自隊の攻撃力+30%・攻撃速度+10%',
+    desc: '一定時間、自隊の攻撃力+50・攻撃速度+10%',
   },
 }
 

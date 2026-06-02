@@ -28,21 +28,22 @@ export interface EquipDef {
   perLevelArmor?:  number                       // +1レベルあたり全属性防御
 }
 
+// 数値は仕様書「装備データ」準拠（α11リスケール）。移動補正のみ相対%で維持。
 export const EQUIP_DEFS: Record<string, EquipDef> = {
   // 武器
-  sword:     { id: 'sword',     name: '剣',   slot: 'weapon', icon: '⚔️', attackAdd: 10, attr: 'slash',  perLevelAtk: 1 },
-  spear:     { id: 'spear',     name: '槍',   slot: 'weapon', icon: '🔱', attackAdd: 6,  defenseAdd: 4, attr: 'pierce', rangeAdd: 2, moveMultPct: -5, perLevelAtk: 1 },
-  fireSword: { id: 'fireSword', name: '炎剣', slot: 'weapon', icon: '🔥', attackAdd: 12, attr: 'fire',   attackSpeedAdd: 0.1, perLevelAtk: 1 },
-  shortBow:  { id: 'shortBow',  name: '短弓', slot: 'weapon', icon: '🏹', attackAdd: 4,  attr: 'pierce', rangeAdd: 12, attackSpeedAdd: -0.2, moveMultPct: -10, perLevelAtk: 1 },
-  longBow:   { id: 'longBow',   name: '長弓', slot: 'weapon', icon: '🏹', attackAdd: 5,  attr: 'pierce', rangeAdd: 18, attackSpeedAdd: -0.3, moveMultPct: -10, perLevelAtk: 1 },
+  sword:     { id: 'sword',     name: '剣',   slot: 'weapon', icon: '⚔️', attackAdd: 50, attr: 'slash',  perLevelAtk: 5 },
+  spear:     { id: 'spear',     name: '槍',   slot: 'weapon', icon: '🔱', attackAdd: 30, defenseAdd: 20, attr: 'pierce', rangeAdd: 2, attackSpeedAdd: -1, moveMultPct: -5, perLevelAtk: 3 },
+  fireSword: { id: 'fireSword', name: '炎剣', slot: 'weapon', icon: '🔥', attackAdd: 60, attr: 'fire',   attackSpeedAdd: 1, perLevelAtk: 6 },
+  shortBow:  { id: 'shortBow',  name: '短弓', slot: 'weapon', icon: '🏹', attackAdd: 10, attr: 'pierce', rangeAdd: 30, attackSpeedAdd: -3, moveMultPct: -10, perLevelAtk: 1 },
+  longBow:   { id: 'longBow',   name: '長弓', slot: 'weapon', icon: '🏹', attackAdd: 12, attr: 'pierce', rangeAdd: 40, attackSpeedAdd: -4, moveMultPct: -10, perLevelAtk: 2 },
 
   // 防具
-  bronzeBody:  { id: 'bronzeBody',  name: '青銅の鎧',   slot: 'body', icon: '🛡️', armorDef: { slash: 8, pierce: 8, strike: 8 }, perLevelArmor: 1 },
-  thunderBody: { id: 'thunderBody', name: '雷の鎧',     slot: 'body', icon: '⚡', attackAdd: 5, armorDef: { slash: 10, pierce: 10, strike: 10, thunder: 40 }, perLevelArmor: 1 },
-  bronzeArms:  { id: 'bronzeArms',  name: '青銅の小手', slot: 'arms', icon: '🧤', armorDef: { slash: 3, pierce: 3, strike: 3 }, perLevelArmor: 1 },
-  bronzeHead:  { id: 'bronzeHead',  name: '青銅の兜',   slot: 'head', icon: '⛑️', armorDef: { slash: 5, pierce: 5, strike: 5 }, perLevelArmor: 1 },
-  bronzeLegs:  { id: 'bronzeLegs',  name: '青銅の具足', slot: 'legs', icon: '🥾', armorDef: { slash: 3, pierce: 3, strike: 3 }, perLevelArmor: 1 },
-  melqartLegs: { id: 'melqartLegs', name: 'メルカルトの具足', slot: 'legs', icon: '🔥', armorDef: { fire: 40 }, moveMultPct: 20, perLevelArmor: 1 },
+  bronzeBody:  { id: 'bronzeBody',  name: '青銅の鎧',   slot: 'body', icon: '🛡️', armorDef: { slash: 20, pierce: 20, strike: 20 }, perLevelArmor: 1 },
+  thunderBody: { id: 'thunderBody', name: '雷の鎧',     slot: 'body', icon: '⚡', attackAdd: 30, armorDef: { slash: 25, pierce: 25, strike: 25, thunder: 100 }, perLevelArmor: 5 },
+  bronzeArms:  { id: 'bronzeArms',  name: '青銅の小手', slot: 'arms', icon: '🧤', armorDef: { slash: 5, pierce: 5, strike: 5 }, perLevelArmor: 1 },
+  bronzeHead:  { id: 'bronzeHead',  name: '青銅の兜',   slot: 'head', icon: '⛑️', armorDef: { slash: 10, pierce: 10, strike: 10 }, perLevelArmor: 1 },
+  bronzeLegs:  { id: 'bronzeLegs',  name: '青銅の具足', slot: 'legs', icon: '🥾', armorDef: { slash: 5, pierce: 5, strike: 5 }, perLevelArmor: 1 },
+  melqartLegs: { id: 'melqartLegs', name: 'メルカルトの具足', slot: 'legs', icon: '🔥', armorDef: { fire: 100 }, moveMultPct: 5, perLevelArmor: 1 },
 }
 
 // ─── 所持装備インスタンス（軍単位所有・レベルを持つ）─────────────────

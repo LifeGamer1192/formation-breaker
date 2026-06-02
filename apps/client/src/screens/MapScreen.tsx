@@ -6,6 +6,7 @@ import { Button } from '../ui/Button'
 export interface MapScreenProps {
   clearedNodes: string[]
   frontier: string[]
+  tokens: number
   onSelectNode: (nodeId: string) => void
   onOpenGhost: () => void
   onOpenImport: () => void
@@ -26,7 +27,7 @@ const PAD_Y = 30
 const cx = (n: MapNode) => PAD_X + n.col * COL_W + 70
 const cy = (n: MapNode) => PAD_Y + n.row * ROW_H + 36
 
-export function MapScreen({ clearedNodes, frontier, onSelectNode, onOpenGhost, onOpenImport, cloudEnabled, cloudUserId, cloudMsg, onCloudSave, onCloudLoad }: MapScreenProps) {
+export function MapScreen({ clearedNodes, frontier, tokens, onSelectNode, onOpenGhost, onOpenImport, cloudEnabled, cloudUserId, cloudMsg, onCloudSave, onCloudLoad }: MapScreenProps) {
   const nodes = Object.values(MAP_NODES)
   const total = nodes.length
   const stateOf = (id: string): NodeState =>
@@ -42,7 +43,8 @@ export function MapScreen({ clearedNodes, frontier, onSelectNode, onOpenGhost, o
     <div style={{ maxWidth: 760, margin: '0 auto', padding: '12px', minHeight: '100vh' }}>
       <h1 style={{ fontSize: 18, marginBottom: 4, textAlign: 'center' }}>🗺️ キャンペーン（分岐マップ）</h1>
       <div style={{ fontSize: 10, color: C.sub, textAlign: 'center', marginBottom: 8 }}>
-        攻略済 {clearedNodes.length} / {total}　※一度進むと後戻りはできません
+        攻略済 {clearedNodes.length} / {total}
+        <span style={{ color: C.gold }}>🪙 {tokens} トークン</span>　※一度進むと後戻りはできません
       </div>
 
       {/* 分岐マップ（接続線 + ノード） */}

@@ -281,7 +281,7 @@ export default function App() {
     setScreen('result')
   }
 
-  const handleResultContinue = (updatedRoster: RosterUnit[], earnedTokens: number) => {
+  const handleResultContinue = (updatedRoster: RosterUnit[], earnedGold: number) => {
     // 局地戦は進捗・ロスターに影響しない → インポート画面へ戻る
     if (matchType === 'scenario') { setScreen('import'); return }
     const isGhost = matchType === 'ghost'
@@ -292,18 +292,21 @@ export default function App() {
     // キャンペーン: クリアしたノードを記録し、frontier を次ノードへ（後戻り不可）
     let clearedNodes = gameState.clearedNodes
     let frontier = gameState.frontier
+    let tokenGain = 0 // メタ通貨はノードクリアで蓄積
     if (!isGhost && currentNodeId) {
       const node = getNode(currentNodeId)
       if (node && !clearedNodes.includes(currentNodeId)) {
         clearedNodes = [...clearedNodes, currentNodeId]
         frontier = node.next.filter(n => !clearedNodes.includes(n))
+        tokenGain = 10
       }
     }
 
     const newGameState: GameState = {
       ...gameState,
       roster: updatedRoster,
-      tokens: gameState.tokens + earnedTokens,
+      gold: gameState.gold + earnedGold,       // 戦闘報酬はラン内通貨（金）へ
+      tokens: gameState.tokens + tokenGain,    // メタ通貨はノードクリアで
       inventory: newInventory,
       clearedNodes,
       frontier,
@@ -315,16 +318,16 @@ export default function App() {
     setScreen(isGhost ? 'ghost' : 'map')
   }
 
-  // 傭兵を雇う（トークン消費 → ランダム一般兵をロスターに追加）
+  // 傭兵を雇う（金を消費 → ランダム一般兵をロスターに追加）
   const handleHire = () => {
-    if (gameState.tokens < MERCENARY_COST) return
-    // ロスター数とトークン残から擬似シードを生成（ID 衝突回避のため roster.length も加味）
-    const seed = gameState.tokens * 7919 + gameState.roster.length * 31 + gameState.clearedNodes.length
+    if (gameState.gold < MERCENARY_COST) return
+    // ロスター数と金残から擬似シードを生成（ID 衝突回避のため roster.length も加味）
+    const seed = gameState.gold * 7919 + gameState.roster.length * 31 + gameState.clearedNodes.length
     const merc = generateMercenary(seed, avgLevel(gameState.roster))
     const newGameState: GameState = {
       ...gameState,
       roster: [...gameState.roster, merc],
-      tokens: gameState.tokens - MERCENARY_COST,
+      gold: gameState.gold - MERCENARY_COST,
     }
     setGameState(newGameState)
     saveGame(newGameState)
@@ -352,6 +355,7 @@ export default function App() {
         <MapScreen
           clearedNodes={gameState.clearedNodes}
           frontier={gameState.frontier}
+          tokens={gameState.tokens}
           onSelectNode={handleSelectNode}
           onOpenGhost={handleOpenGhost}
           onOpenImport={handleOpenImport}
@@ -371,7 +375,7 @@ export default function App() {
       {screen === 'formation' && (
         <FormationScreen
           roster={gameState.roster}
-          tokens={gameState.tokens}
+          gold={gameState.gold}
           inventory={gameState.inventory}
           onHire={handleHire}
           onDelete={handleDeleteUnit}

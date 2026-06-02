@@ -7,15 +7,16 @@ export interface TechDef extends Omit<TechniqueRuntime, 'gauge' | 'enabled'> {
   desc: string
 }
 
+// 数値は新スケール（攻撃~200-300）に合わせた追撃・自己バフ
 export const TECHNIQUES: Record<string, TechDef> = {
   throwBlade: {
     id: 'throwBlade', name: '投剣', icon: '🔪', kind: 'bonusAttack',
-    attr: 'pierce', power: 35, range: 30, gaugeMax: 100, speed: 5, priority: 5,
+    attr: 'pierce', power: 180, range: 20, gaugeMax: 100, speed: 5, priority: 5,
     desc: '射程内の最寄り敵へ刺ダメージ（追撃）',
   },
   fireball: {
     id: 'fireball', name: '火炎弾', icon: '🔥', kind: 'bonusAttack',
-    attr: 'fire', power: 40, range: 25, gaugeMax: 100, speed: 4, priority: 6,
+    attr: 'fire', power: 220, range: 18, gaugeMax: 100, speed: 4, priority: 6,
     desc: '射程内の最寄り敵へ火ダメージ（追撃）',
   },
   warStance: {

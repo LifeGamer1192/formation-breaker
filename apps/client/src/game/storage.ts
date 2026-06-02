@@ -10,6 +10,7 @@ export function normalizeGameState(parsed: Partial<GameState>): GameState {
   return {
     roster:      parsed.roster ?? [],
     squads:      parsed.squads ?? [],
+    gold:        parsed.gold ?? 0,
     tokens:      parsed.tokens ?? 0,
     inventory:   parsed.inventory ?? makeInitialInventory(),
     recruitedBattles: parsed.recruitedBattles ?? [],

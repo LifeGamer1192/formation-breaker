@@ -9,7 +9,7 @@ export interface ResultScreenProps {
   roster: RosterUnit[]
   reward: number
   scenario?: boolean   // α9: 局地戦（XP/トークンなし・インポートへ戻る）
-  onContinue: (updatedRoster: RosterUnit[], earnedTokens: number) => void
+  onContinue: (updatedRoster: RosterUnit[], earnedGold: number) => void
   onRetry: () => void
 }
 
@@ -19,8 +19,8 @@ export function ResultScreen({ world, roster, reward, scenario, onContinue, onRe
   const killCount = Object.values(world.units)
     .filter(u => !u.alive && u.side === 'enemy').length
 
-  // 局地戦は報酬・成長なし
-  const earnedTokens = !scenario && won ? calcBattleReward(reward, killCount) : 0
+  // 局地戦は報酬・成長なし。勝利時は金（ラン内通貨）を獲得
+  const earnedGold = !scenario && won ? calcBattleReward(reward, killCount) : 0
 
   // XP 付与 → レベルアップ処理
   const withXp = awardXp(roster, participantIds, killCount, won)
@@ -51,7 +51,7 @@ export function ResultScreen({ world, roster, reward, scenario, onContinue, onRe
             marginTop: 8, paddingTop: 8, borderTop: '1px solid #333',
             fontSize: 14, fontWeight: 'bold', color: C.gold
           }}>
-            🪙 +{earnedTokens} トークン獲得！
+            💰 +{earnedGold} 金 獲得！
             <span style={{ fontSize: 10, color: C.sub, marginLeft: 6 }}>
               (基礎{reward} + 撃破{killCount}×10)
             </span>
@@ -117,7 +117,7 @@ export function ResultScreen({ world, roster, reward, scenario, onContinue, onRe
         ) : !won ? (
           <Button variant="default" onClick={onRetry}>↩ もう一度</Button>
         ) : (
-          <Button variant="accent" onClick={() => onContinue(withLevelUp, earnedTokens)}>▶ 次へ進む</Button>
+          <Button variant="accent" onClick={() => onContinue(withLevelUp, earnedGold)}>▶ 次へ進む</Button>
         )}
       </div>
     </div>
