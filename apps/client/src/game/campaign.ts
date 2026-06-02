@@ -39,6 +39,31 @@ function field(theme: TerrainType): TerrainType[][] {
 export const PLAIN_FIELD    = field('plain')     // 戦場1: 平地主体
 export const FOREST_FIELD   = field('forest')    // 戦場2: 森主体
 export const MOUNTAIN_FIELD = field('mountain')  // 戦場3: 山主体
+export const RIVER_FIELD    = field('river')     // 戦場4B: 河の防衛線
+export const SWAMP_FIELD    = field('swamp')     // 戦場5: 湿地
+export const DESERT_FIELD   = field('desert')    // 戦場6: 決戦の砂塵
+
+// ─── 敵ユニーク・象（中期/後期）─────────────────────────────────────
+// スキピオ・アフリカヌス（仕様 ユニーク2）。象無効化＋「学び」を持つローマの名将。
+function makeScipio(): RosterUnit {
+  return {
+    id: 'enemy_scipio', name: 'スキピオ・アフリカヌス', kind: 'unique', side: 'enemy',
+    hp: 9000, maxHp: 9000, attack: 340, defense: 100, attackSpeed: 10, gaugeMax: 100, gauge: 0,
+    alive: true, isLeader: true, skills: [], flankMod: -30, rearMod: -50, range: 10, level: 1, exp: 0,
+    attackAttr: 'slash', armorDef: { ...BRONZE_SET, slash: 60, pierce: 60, strike: 60 },
+    ultId: 'zouMukou', canLearn: true,
+  }
+}
+
+// 戦象（仕様 ランダム3）。体力半分以下で離脱。プレイヤーは象封じの銅鑼で移動不可にできる。
+function makeWarElephant(id: string, name: string): RosterUnit {
+  return {
+    id, name, kind: 'general', side: 'enemy',
+    hp: 12000, maxHp: 12000, attack: 500, defense: 10, attackSpeed: 5, gaugeMax: 100, gauge: 0,
+    alive: true, isLeader: false, skills: [], flankMod: -30, rearMod: -50, range: 7, level: 1, exp: 0,
+    attackAttr: 'strike', isElephant: true,
+  }
+}
 
 // ─── 戦場1: 平原の遭遇戦（縦列ローマ兵2）────────────────────────────
 export const BATTLE_1: BattleDef = {
@@ -92,7 +117,75 @@ export const BATTLE_3: BattleDef = {
   },
 }
 
-// ─── キャンペーン（マップ1=戦場1→2→3の一本道・後戻り不可）──────────────
+// ─── 中期: 戦場4（分岐A=平原の追撃 / 分岐B=河の防衛線）────────────────
+export const BATTLE_4A: BattleDef = {
+  id: 'battle_4a', name: '戦場4A・平原の追撃', allyStartX: 10, enemyStartX: 80, reward: 80,
+  terrain: PLAIN_FIELD,
+  enemies: {
+    units: [
+      makeRoman('r4a_0', 'ローマ剣兵A', 'sword'), makeRoman('r4a_1', 'ローマ剣兵B', 'sword'), makeRoman('r4a_2', 'ローマ剣兵C', 'sword'),
+      makeRoman('r4a_3', 'ローマ弓兵D', 'bow'),   makeRoman('r4a_4', 'ローマ弓兵E', 'bow'),   makeRoman('r4a_5', 'ローマ弓兵F', 'bow'),
+    ],
+    squads: [
+      { id: 'r4a_sw', name: '敵前衛', unitIds: ['r4a_0', 'r4a_1', 'r4a_2'], formation: 'column' },
+      { id: 'r4a_bw', name: '敵後衛', unitIds: ['r4a_3', 'r4a_4', 'r4a_5'], formation: 'horizontal' },
+    ],
+  },
+}
+export const BATTLE_4B: BattleDef = {
+  id: 'battle_4b', name: '戦場4B・河の防衛線', allyStartX: 10, enemyStartX: 80, reward: 85,
+  terrain: RIVER_FIELD,
+  enemies: {
+    units: [
+      makeRoman('r4b_0', 'ローマ剣兵A', 'sword'), makeRoman('r4b_1', 'ローマ剣兵B', 'sword'),
+      makeRoman('r4b_2', 'ローマ弓兵C', 'bow'), makeRoman('r4b_3', 'ローマ弓兵D', 'bow'),
+      makeRoman('r4b_4', 'ローマ弓兵E', 'bow'), makeRoman('r4b_5', 'ローマ弓兵F', 'bow'),
+    ],
+    squads: [
+      { id: 'r4b_sw', name: '敵前衛', unitIds: ['r4b_0', 'r4b_1'], formation: 'column' },
+      { id: 'r4b_bw', name: '敵本陣', unitIds: ['r4b_2', 'r4b_3', 'r4b_4', 'r4b_5'], formation: 'horizontal' },
+    ],
+  },
+}
+
+// ─── 中期: 戦場5（合流・湿地の戦象）────────────────────────────────
+export const BATTLE_5: BattleDef = {
+  id: 'battle_5', name: '戦場5・湿地の戦象', allyStartX: 10, enemyStartX: 80, reward: 120,
+  terrain: SWAMP_FIELD,
+  enemies: {
+    units: [
+      makeRoman('r5_0', 'ローマ剣兵A', 'sword'), makeRoman('r5_1', 'ローマ剣兵B', 'sword'), makeRoman('r5_2', 'ローマ剣兵C', 'sword'),
+      makeRoman('r5_3', 'ローマ弓兵D', 'bow'),   makeRoman('r5_4', 'ローマ弓兵E', 'bow'),
+      makeWarElephant('r5_zou', '戦象'),
+    ],
+    squads: [
+      { id: 'r5_sw', name: '敵前衛', unitIds: ['r5_0', 'r5_1', 'r5_2'], formation: 'column' },
+      { id: 'r5_zou_sq', name: '象隊', unitIds: ['r5_zou'], formation: 'solo' },
+      { id: 'r5_bw', name: '敵後衛', unitIds: ['r5_3', 'r5_4'], formation: 'horizontal' },
+    ],
+  },
+}
+
+// ─── 後期: 戦場6（決戦・スキピオと戦象軍・大規模）──────────────────────
+export const BATTLE_6: BattleDef = {
+  id: 'battle_6', name: '戦場6・決戦 スキピオ', allyStartX: 10, enemyStartX: 80, reward: 200,
+  terrain: DESERT_FIELD,
+  enemies: {
+    units: [
+      makeRoman('r6_0', 'ローマ剣兵A', 'sword'), makeRoman('r6_1', 'ローマ剣兵B', 'sword'),
+      makeRoman('r6_2', 'ローマ剣兵C', 'sword'), makeRoman('r6_3', 'ローマ剣兵D', 'sword'),
+      makeWarElephant('r6_zou0', '戦象A'), makeWarElephant('r6_zou1', '戦象B'),
+      makeScipio(), makeRoman('r6_g0', 'ローマ近衛A', 'sword'), makeRoman('r6_g1', 'ローマ近衛B', 'sword'),
+    ],
+    squads: [
+      { id: 'r6_front', name: '敵前衛', unitIds: ['r6_0', 'r6_1', 'r6_2', 'r6_3'], formation: 'column' },
+      { id: 'r6_zou', name: '象隊', unitIds: ['r6_zou0', 'r6_zou1'], formation: 'horizontal' },
+      { id: 'r6_hq', name: '敵本陣', unitIds: ['enemy_scipio', 'r6_g0', 'r6_g1'], formation: 'column' },
+    ],
+  },
+}
+
+// ─── キャンペーン（マップ1=戦場1→2→3、中期で分岐4→合流5→決戦6・後戻り不可）──
 export interface MapNode {
   id:     string
   battle: BattleDef
@@ -102,9 +195,13 @@ export interface MapNode {
 }
 
 export const MAP_NODES: Record<string, MapNode> = {
-  n1: { id: 'n1', battle: BATTLE_1, next: ['n2'], col: 0, row: 1 },
-  n2: { id: 'n2', battle: BATTLE_2, next: ['n3'], col: 1, row: 1 },
-  n3: { id: 'n3', battle: BATTLE_3, next: [],     col: 2, row: 1 },
+  n1:  { id: 'n1',  battle: BATTLE_1,  next: ['n2'],          col: 0, row: 1 },
+  n2:  { id: 'n2',  battle: BATTLE_2,  next: ['n3'],          col: 1, row: 1 },
+  n3:  { id: 'n3',  battle: BATTLE_3,  next: ['n4a', 'n4b'],  col: 2, row: 1 },
+  n4a: { id: 'n4a', battle: BATTLE_4A, next: ['n5'],          col: 3, row: 0 },
+  n4b: { id: 'n4b', battle: BATTLE_4B, next: ['n5'],          col: 3, row: 2 },
+  n5:  { id: 'n5',  battle: BATTLE_5,  next: ['n6'],          col: 4, row: 1 },
+  n6:  { id: 'n6',  battle: BATTLE_6,  next: [],              col: 5, row: 1 },
 }
 export const START_NODE = 'n1'
 
@@ -113,4 +210,4 @@ export function getNode(id: string): MapNode | undefined {
 }
 
 // 互換: 旧 CAMPAIGN（インデックス）参照が残る箇所向け
-export const CAMPAIGN = [BATTLE_1, BATTLE_2, BATTLE_3]
+export const CAMPAIGN = [BATTLE_1, BATTLE_2, BATTLE_3, BATTLE_4A, BATTLE_4B, BATTLE_5, BATTLE_6]
