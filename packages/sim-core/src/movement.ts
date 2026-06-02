@@ -2,18 +2,18 @@
 // 仕様書 L143-148: 隊単位・移動予定キュー・地形乗算・常時薄表示
 
 import type { WorldState, SquadState } from './types'
-import { dist, angleTo, stepToward, TERRAIN_SPEED } from './geo'
+import { dist, angleTo, stepToward, TERRAIN_SPEED, isImpassable } from './geo'
 import type { TerrainType } from './geo'
 import { FORMATION_MOVE_MULT, getEffectiveFormation } from './formation'
 
 // ─── デモ地形グリッド（10列×6行、各セル10×10ゲーム単位）─────────────
 // 仕様書L165: 山・平地・森・砂漠・沼は移動可
 export const DEMO_TERRAIN: TerrainType[][] = [
-  ['plain',  'plain',   'forest',   'forest',   'plain',    'plain',    'plain',    'mountain', 'plain', 'plain'],
-  ['plain',  'forest',  'forest',   'forest',   'plain',    'plain',    'forest',   'mountain', 'plain', 'plain'],
+  ['plain',  'plain',   'forest',   'forest',   'river',    'plain',    'plain',    'mountain', 'plain', 'plain'],
+  ['plain',  'forest',  'forest',   'forest',   'river',    'plain',    'forest',   'mountain', 'plain', 'plain'],
   ['plain',  'forest',  'plain',    'plain',    'plain',    'plain',    'forest',   'plain',    'plain', 'plain'],
-  ['plain',  'plain',   'plain',    'plain',    'mountain', 'mountain', 'forest',   'plain',    'plain', 'plain'],
-  ['plain',  'plain',   'plain',    'plain',    'mountain', 'plain',    'plain',    'plain',    'plain', 'plain'],
+  ['plain',  'plain',   'plain',    'plain',    'river',    'mountain', 'forest',   'plain',    'wall',  'plain'],
+  ['plain',  'plain',   'plain',    'plain',    'river',    'plain',    'plain',    'plain',    'wall',  'plain'],
   ['plain',  'plain',   'plain',    'plain',    'plain',    'plain',    'plain',    'plain',    'plain', 'plain'],
 ]
 
@@ -39,17 +39,23 @@ function tickSquad(squad: SquadState, allSquads: SquadState[], aliveCount: numbe
   }
 
   const target = squad.moveQueue[0]
-  const terrain = getTerrainAt(target)
+  const newFacing = angleTo(squad.pos, target)
+  // 速度は現在地の地形で決まる（移動タイプ × 地形）
+  const terrain = getTerrainAt(squad.pos)
   const pct = TERRAIN_SPEED[squad.movementType][terrain] ?? 100
   // 実効陣形（フォールダウン後）の移動速度補正を掛ける（仕様書 L103-110）
   const effFormation = getEffectiveFormation(squad.formation, aliveCount)
   const formMult = FORMATION_MOVE_MULT[effFormation]
   const effectiveSpeed = squad.moveSpeed * pct / 100 * formMult
 
-  const newPos    = stepToward(squad.pos, target, effectiveSpeed)
-  const arrived   = dist(newPos, target) < effectiveSpeed * 0.6
-  const newFacing = angleTo(squad.pos, target)
+  const newPos = stepToward(squad.pos, target, effectiveSpeed)
 
+  // 移動不可地形へは進入しない（手前で停止・向きだけ更新）。α8
+  if (isImpassable(getTerrainAt(newPos))) {
+    return { ...squad, facing: newFacing }
+  }
+
+  const arrived = dist(newPos, target) < effectiveSpeed * 0.6
   return {
     ...squad,
     pos:       newPos,

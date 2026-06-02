@@ -23,10 +23,14 @@ const SQUAD_R = 22
 
 const TERRAIN_COLOR: Record<TerrainType, string> = {
   plain: '#4a7a30', forest: '#1e5010', mountain: '#7a7060', desert: '#b8922a', swamp: '#3a5a3a',
+  water: '#1f3a78', river: '#2f63c8', highmount: '#4a4038', moat: '#243a5e', wall: '#4a4a4a',
 }
 const TERRAIN_LABEL: Record<TerrainType, string> = {
   plain: '平地', forest: '森', mountain: '山', desert: '砂漠', swamp: '沼',
+  water: '池', river: '川', highmount: '高山', moat: '堀', wall: '塀',
 }
+// 移動不可地形（凡例・描画用）
+const IMPASSABLE_SET = new Set<TerrainType>(['water', 'river', 'highmount', 'moat', 'wall'])
 const gx = (x: number) => x * SCALE
 const gy = (y: number) => y * SCALE
 
@@ -34,10 +38,20 @@ function drawBattlefield(ctx: CanvasRenderingContext2D, world: WorldState, selec
   ctx.clearRect(0, 0, CW, CH)
 
   DEMO_TERRAIN.forEach((row, ri) => row.forEach((terrain, ci) => {
+    const x = ci * TILE_PX, y = ri * TILE_PX
     ctx.fillStyle = TERRAIN_COLOR[terrain]
-    ctx.fillRect(ci * TILE_PX, ri * TILE_PX, TILE_PX, TILE_PX)
+    ctx.fillRect(x, y, TILE_PX, TILE_PX)
     ctx.strokeStyle = '#00000018'; ctx.lineWidth = 1
-    ctx.strokeRect(ci * TILE_PX, ri * TILE_PX, TILE_PX, TILE_PX)
+    ctx.strokeRect(x, y, TILE_PX, TILE_PX)
+    // 移動不可地形は斜線ハッチで明示（α8）
+    if (IMPASSABLE_SET.has(terrain)) {
+      ctx.save()
+      ctx.strokeStyle = '#ffffff33'; ctx.lineWidth = 2
+      for (let o = -TILE_PX; o < TILE_PX; o += 10) {
+        ctx.beginPath(); ctx.moveTo(x + o, y); ctx.lineTo(x + o + TILE_PX, y + TILE_PX); ctx.stroke()
+      }
+      ctx.restore()
+    }
   }))
 
   const view = buildUnitView(world)
@@ -130,6 +144,11 @@ function drawBattlefield(ctx: CanvasRenderingContext2D, world: WorldState, selec
         ctx.beginPath(); ctx.arc(ux, uy - UNIT_R - 3, 3, 0, 2 * Math.PI)
         ctx.fillStyle = '#ffdd00'; ctx.fill()
       }
+      // 大将マーカー（赤リング・α8）
+      if (unit.isCommander) {
+        ctx.beginPath(); ctx.arc(ux, uy, UNIT_R + 5, 0, 2 * Math.PI)
+        ctx.strokeStyle = '#ff3344'; ctx.lineWidth = 2; ctx.stroke()
+      }
 
       const barW = 14, barH = 2, barX = ux - barW / 2, barY = uy + UNIT_R + 3
       ctx.fillStyle = '#333'; ctx.fillRect(barX, barY, barW, barH)
@@ -181,7 +200,7 @@ function UnitCard({ unit, squad, color, squadUnits, tick, onToggleTech }: {
           <span title={`攻撃属性: ${ATTRIBUTES[unit.attackAttr ?? 'slash'].label}`}>
             {ATTRIBUTES[unit.attackAttr ?? 'slash'].icon}
           </span>
-          {' '}{unit.name}{unit.isLeader ? ' 👑' : ''}
+          {' '}{unit.name}{unit.isLeader ? ' 👑' : ''}{unit.isCommander ? ' 🎖' : ''}
         </span>
         <span style={{ color: '#aaa', fontSize: 10 }}>
           {unit.alive ? `${unit.hp.toLocaleString()}/${unit.maxHp.toLocaleString()}` : '離脱'}

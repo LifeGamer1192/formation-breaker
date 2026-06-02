@@ -73,6 +73,8 @@ export interface UnitState {
   ultId?:       string
   // α6: 兵士の技（固有ゲージ・自動発動）
   techniques?:  TechniqueRuntime[]
+  // α8: 大将（最後尾隊のリーダー）。離脱でその陣営は敗北
+  isCommander?: boolean
 }
 
 export interface SquadState {

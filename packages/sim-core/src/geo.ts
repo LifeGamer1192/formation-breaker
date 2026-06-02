@@ -3,16 +3,22 @@
 
 export interface Vec2 { x: number; y: number }
 
-// 仕様書 L165: 山・平地・森・砂漠・沼は移動可
-export type TerrainType = 'plain' | 'forest' | 'mountain' | 'desert' | 'swamp'
+// 仕様書 L165-269: 山・平地・森・砂漠・沼は移動可 / 池・川・高山・堀・塀は移動不可
+export type TerrainType =
+  | 'plain' | 'forest' | 'mountain' | 'desert' | 'swamp'   // 移動可
+  | 'water' | 'river' | 'highmount' | 'moat' | 'wall'      // 移動不可（α8）
+
+// 移動不可地形（squad はここへ進入できない）
+export const IMPASSABLE: ReadonlySet<TerrainType> = new Set<TerrainType>(['water', 'river', 'highmount', 'moat', 'wall'])
+export function isImpassable(t: TerrainType): boolean { return IMPASSABLE.has(t) }
 
 // 仕様書 L145: 移動タイプごとに地形速度補正(50%〜200%)
 export type MovementType = 'plain' | 'forest'
 
-/** 地形ごとの移動速度補正 (%) */
+/** 地形ごとの移動速度補正 (%)。移動不可地形は 0（進入不可）。 */
 export const TERRAIN_SPEED: Record<MovementType, Record<TerrainType, number>> = {
-  plain:  { plain: 100, forest: 60,  mountain: 50, desert: 70, swamp: 40 },
-  forest: { plain: 80,  forest: 100, mountain: 60, desert: 60, swamp: 50 },
+  plain:  { plain: 100, forest: 60,  mountain: 50, desert: 70, swamp: 40, water: 0, river: 0, highmount: 0, moat: 0, wall: 0 },
+  forest: { plain: 80,  forest: 100, mountain: 60, desert: 60, swamp: 50, water: 0, river: 0, highmount: 0, moat: 0, wall: 0 },
 }
 
 export function dist(a: Vec2, b: Vec2): number {

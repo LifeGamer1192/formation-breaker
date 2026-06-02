@@ -102,6 +102,14 @@ function makeWorldFromSetup(gameState: GameState, battleDef: BattleDef): WorldSt
     }
   }
 
+  // α8: 大将＝最後尾の隊のリーダー（撃破で陣営敗北）
+  const allyRear = gameState.squads.filter(s => s.unitIds.length > 0).slice(-1)[0]
+  const allyCmdId = allyRear?.unitIds[0]
+  if (allyCmdId && allyUnits[allyCmdId]) allyUnits[allyCmdId].isCommander = true
+  const enemyRear = battleDef.enemies.squads.filter(s => s.unitIds.length > 0).slice(-1)[0]
+  const enemyCmdId = enemyRear?.unitIds[0]
+  if (enemyCmdId && enemyUnits[enemyCmdId]) enemyUnits[enemyCmdId].isCommander = true
+
   const allySquads = gameState.squads.map(s => {
     const re = reBySquad.get(s.id)!
     // 隊の必殺技はリーダー（先頭ユニット）の ultId から解決

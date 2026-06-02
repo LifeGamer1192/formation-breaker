@@ -17,6 +17,23 @@ function squadAlive(squad: SquadState, units: WorldState['units']) {
   return squad.unitIds.map(id => units[id]).filter(u => u?.alive)
 }
 
+// 勝敗判定（α8: 大将撃破で決着）。大将がいればその離脱、いなければ全滅で敗北。
+function checkOutcome(units: WorldState['units']): { finished: boolean; winner: Side | null; reason: 'commander' | 'wipe' | null } {
+  const us = Object.values(units)
+  const sideDefeated = (side: Side): { defeated: boolean; byCommander: boolean } => {
+    const anyAlive = us.some(u => u.alive && u.side === side)
+    const cmd = us.find(u => u.side === side && u.isCommander)
+    if (cmd && !cmd.alive) return { defeated: true, byCommander: true }
+    return { defeated: !anyAlive, byCommander: false }
+  }
+  const ally = sideDefeated('ally')
+  const enemy = sideDefeated('enemy')
+  if (!ally.defeated && !enemy.defeated) return { finished: false, winner: null, reason: null }
+  // 両者同時敗北は ally 敗北を優先（防御側基準）。通常は片方のみ。
+  if (enemy.defeated && !ally.defeated) return { finished: true, winner: 'ally', reason: enemy.byCommander ? 'commander' : 'wipe' }
+  return { finished: true, winner: 'enemy', reason: ally.byCommander ? 'commander' : 'wipe' }
+}
+
 export function tickCombat(world: WorldState, rng: Prng): WorldState {
   if (world.finished) return world
 
@@ -144,21 +161,20 @@ export function tickCombat(world: WorldState, rng: Prng): WorldState {
     units[unit.id].techniques = techs
   }
 
-  // ④ 勝敗判定
-  const allyAlive  = Object.values(units).some(u => u.alive && u.side === 'ally')
-  const enemyAlive = Object.values(units).some(u => u.alive && u.side === 'enemy')
-  const finished   = !allyAlive || !enemyAlive
-  const winner: Side | null = finished ? (allyAlive ? 'ally' : 'enemy') : null
-
-  if (finished && winner) newLog.push(winner === 'ally' ? '🏆 味方の勝利！' : '💀 敵の勝利！')
+  // ④ 勝敗判定（大将撃破で決着）
+  const outcome = checkOutcome(units)
+  if (outcome.finished && outcome.winner) {
+    const tag = outcome.reason === 'commander' ? '（大将討ち取り）' : ''
+    newLog.push(outcome.winner === 'ally' ? `🏆 味方の勝利！${tag}` : `💀 敵の勝利！${tag}`)
+  }
 
   return {
     ...world,
     tick:     world.tick + 1,
     units,
     log:      [...world.log, ...newLog].slice(-200),
-    finished,
-    winner,
+    finished: outcome.finished,
+    winner:   outcome.winner,
   }
 }
 
@@ -224,12 +240,12 @@ export function executeUltimate(world: WorldState, squadId: string, targetPos?: 
   // ゲージ消費
   const squads = world.squads.map(s => s.id === caster.id ? { ...s, ultGauge: 0 } : s)
 
-  // 勝敗再判定（範囲攻撃で決着しうる）
-  const allyAlive  = Object.values(units).some(u => u.alive && u.side === 'ally')
-  const enemyAlive = Object.values(units).some(u => u.alive && u.side === 'enemy')
-  const finished   = !allyAlive || !enemyAlive
-  const winner: Side | null = finished ? (allyAlive ? 'ally' : 'enemy') : null
-  if (finished && winner) newLog.push(winner === 'ally' ? '🏆 味方の勝利！' : '💀 敵の勝利！')
+  // 勝敗再判定（範囲攻撃で決着しうる・大将撃破含む）
+  const outcome = checkOutcome(units)
+  if (outcome.finished && outcome.winner) {
+    const tag = outcome.reason === 'commander' ? '（大将討ち取り）' : ''
+    newLog.push(outcome.winner === 'ally' ? `🏆 味方の勝利！${tag}` : `💀 敵の勝利！${tag}`)
+  }
 
-  return { ...world, units, squads, log: [...world.log, ...newLog].slice(-200), finished, winner }
+  return { ...world, units, squads, log: [...world.log, ...newLog].slice(-200), finished: outcome.finished, winner: outcome.winner }
 }
