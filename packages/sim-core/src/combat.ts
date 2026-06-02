@@ -221,6 +221,7 @@ function applyUltEffect(world: WorldState, caster: SquadState, ult: UltimateRunt
   const units: WorldState['units'] = {}
   for (const [k, v] of Object.entries(world.units)) units[k] = { ...v }
   const newLog: string[] = []
+  let newTerrain = world.terrain   // terrain 種別で差し替える（他種別は据置）
 
   const aliveOf = (sq: SquadState) => sq.unitIds.map(id => world.units[id]).filter(u => u?.alive)
 
@@ -282,6 +283,27 @@ function applyUltEffect(world: WorldState, caster: SquadState, ult: UltimateRunt
     if (healed === 0) return world // 回復対象なし → 不発（ゲージ温存）
     const scope = ult.radius > 0 ? '範囲回復' : '自隊回復'
     newLog.push(`[T${world.tick}] ✨${caster.name}: ${ult.icon}${ult.name}！ ${scope}（${healed}体 +${amount}）`)
+  } else if (ult.kind === 'terrain') {
+    // 地形変更（α13）。対象地点周辺のセルを指定地形へ。堀/塀で進路妨害、平地化で啓開。
+    let center = targetPos
+    if (!center) {
+      const enemySquads = world.squads.filter(s => s.side !== caster.side && aliveOf(s).length > 0)
+      if (enemySquads.length === 0) return world
+      center = enemySquads.reduce((a, b) => dist(caster.pos, a.pos) < dist(caster.pos, b.pos) ? a : b).pos
+    }
+    if (dist(caster.pos, center) > ult.range + ult.radius) return world // 射程外 → 不発
+    const type = ult.terrainType ?? 'wall'
+    const grid = (world.terrain ?? DEMO_TERRAIN).map(row => [...row])
+    let changed = 0
+    for (let r = 0; r < grid.length; r++) {
+      for (let c = 0; c < grid[r].length; c++) {
+        const cx = c * 10 + 5, cy = r * 10 + 5  // セル中心（各セル10×10）
+        if (dist({ x: cx, y: cy }, center) <= ult.radius && grid[r][c] !== type) { grid[r][c] = type; changed++ }
+      }
+    }
+    if (changed === 0) return world // 変化なし → 不発
+    newTerrain = grid
+    newLog.push(`[T${world.tick}] ✨${caster.name}: ${ult.icon}${ult.name}！ 地形を${type}へ（${changed}マス）`)
   }
 
   // ゲージ消費（通常必殺技のみ。アイテム発動はゲージに依存しない）
@@ -294,5 +316,5 @@ function applyUltEffect(world: WorldState, caster: SquadState, ult: UltimateRunt
     newLog.push(outcome.winner === 'ally' ? `🏆 味方の勝利！${tag}` : `💀 敵の勝利！${tag}`)
   }
 
-  return { ...world, units, squads, log: [...world.log, ...newLog].slice(-200), finished: outcome.finished, winner: outcome.winner }
+  return { ...world, units, squads, terrain: newTerrain, log: [...world.log, ...newLog].slice(-200), finished: outcome.finished, winner: outcome.winner }
 }

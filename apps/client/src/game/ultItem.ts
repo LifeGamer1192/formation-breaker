@@ -51,6 +51,14 @@ export const ULT_ITEMS: Record<string, UltItemDef> = {
       power: 1200, range: 0, radius: 20, gaugeMax: 0, ultSpeed: 0,
     },
   },
+  moatScroll: {
+    id: 'moatScroll', name: '落とし穴の符', icon: '🕳️',
+    desc: '最寄りの敵地点を堀に変え進路を妨害（半径14のマスを堀に）',
+    ult: {
+      id: 'item_moatScroll', name: '落とし穴の符', icon: '🕳️', kind: 'terrain',
+      terrainType: 'moat', range: 40, radius: 14, gaugeMax: 0, ultSpeed: 0,
+    },
+  },
 }
 
 // defId → 発動する UltimateRuntime を解決
@@ -61,5 +69,5 @@ export function resolveUltItem(defId: string): UltimateRuntime | undefined {
 
 // 初期所持（defId→個数）
 export function makeInitialUltItems(): Record<string, number> {
-  return { fireJar: 2, warHorn: 1, healWater: 1 }
+  return { fireJar: 2, warHorn: 1, healWater: 1, moatScroll: 1 }
 }
