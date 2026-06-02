@@ -264,6 +264,24 @@ function applyUltEffect(world: WorldState, caster: SquadState, ult: UltimateRunt
       units[u.id] = { ...units[u.id], skills: [...units[u.id].skills, ...buffEffects] }
     }
     newLog.push(`[T${world.tick}] ✨${caster.name}: ${ult.icon}${ult.name}！ 隊を強化（${((ult.durationTicks ?? 200) / 20).toFixed(0)}秒）`)
+  } else if (ult.kind === 'heal') {
+    // 回復（α13）。radius 0=自隊のみ / >0=発動隊中心の半径内の味方全隊。
+    // 戦闘中の死者は蘇生しない（生存者のみ最大HPまで回復）。
+    const amount = Math.max(0, ult.power ?? 0)
+    const targets = ult.radius > 0
+      ? world.squads.filter(s => s.side === caster.side && dist(caster.pos, s.pos) <= ult.range + ult.radius)
+      : [caster]
+    let healed = 0
+    for (const sq of targets) {
+      for (const u of aliveOf(sq)) {
+        const before = units[u.id].hp
+        const after = Math.min(u.maxHp, before + amount)
+        if (after > before) { units[u.id].hp = after; healed++ }
+      }
+    }
+    if (healed === 0) return world // 回復対象なし → 不発（ゲージ温存）
+    const scope = ult.radius > 0 ? '範囲回復' : '自隊回復'
+    newLog.push(`[T${world.tick}] ✨${caster.name}: ${ult.icon}${ult.name}！ ${scope}（${healed}体 +${amount}）`)
   }
 
   // ゲージ消費（通常必殺技のみ。アイテム発動はゲージに依存しない）

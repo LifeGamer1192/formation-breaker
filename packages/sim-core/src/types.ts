@@ -31,13 +31,13 @@ export interface UltimateRuntime {
   id:            string
   name:          string
   icon:          string
-  kind:          'aoeDamage' | 'squadBuff'
+  kind:          'aoeDamage' | 'squadBuff' | 'heal'
   range:         number            // 発動可能距離（隊中心→対象）
-  radius:        number            // 効果半径（範囲技）
+  radius:        number            // 効果半径（範囲技。heal: 0=自隊のみ / >0=範囲内の味方全隊）
   ultSpeed:      number            // ゲージ充填速度/tick
   gaugeMax:      number            // 満タン値
   attr?:         AttrId            // 攻撃属性（aoeDamage）
-  power?:        number            // 攻撃力（aoeDamage）
+  power?:        number            // 攻撃力（aoeDamage）/ 回復量（heal）
   durationTicks?: number           // 効果持続（squadBuff）
   buffs?:        { target: StatId; op: EffectOp; value: number }[]  // squadBuff
 }

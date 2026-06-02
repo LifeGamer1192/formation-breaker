@@ -43,6 +43,14 @@ export const ULT_ITEMS: Record<string, UltItemDef> = {
       ],
     },
   },
+  healWater: {
+    id: 'healWater', name: '治癒の聖水', icon: '💧',
+    desc: '周囲（半径20）の味方全隊を1200回復（範囲回復・戦死者は蘇生しない）',
+    ult: {
+      id: 'item_healWater', name: '治癒の聖水', icon: '💧', kind: 'heal',
+      power: 1200, range: 0, radius: 20, gaugeMax: 0, ultSpeed: 0,
+    },
+  },
 }
 
 // defId → 発動する UltimateRuntime を解決
@@ -53,5 +61,5 @@ export function resolveUltItem(defId: string): UltimateRuntime | undefined {
 
 // 初期所持（defId→個数）
 export function makeInitialUltItems(): Record<string, number> {
-  return { fireJar: 2, warHorn: 1 }
+  return { fireJar: 2, warHorn: 1, healWater: 1 }
 }
