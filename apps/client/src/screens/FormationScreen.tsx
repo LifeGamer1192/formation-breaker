@@ -3,12 +3,15 @@ import { FORMATION_LABEL } from '@fb/sim-core'
 import type { FormationType } from '@fb/sim-core'
 import type { RosterUnit, SquadSetup } from '../game/types'
 import { MERCENARY_COST, autoArrange } from '../game/army'
+import { EQUIP_DEFS, SLOTS, SLOT_LABEL } from '../game/equipment'
+import type { OwnedEquip, EquipSlot } from '../game/equipment'
 import { C } from '../ui/theme'
 import { Button } from '../ui/Button'
 
 export interface FormationScreenProps {
   roster: RosterUnit[]
   tokens: number
+  inventory: OwnedEquip[]
   onHire: () => void
   onStart: (squads: SquadSetup[]) => void
   onSaveGhost: (squads: SquadSetup[]) => void
@@ -16,13 +19,24 @@ export interface FormationScreenProps {
 
 const FORMATIONS: FormationType[] = ['none', 'horizontal', 'column', 'square', 'arrowhead', 'circle', 'solo']
 
-export function FormationScreen({ roster, tokens, onHire, onStart, onSaveGhost }: FormationScreenProps) {
+export function FormationScreen({ roster, tokens, inventory, onHire, onStart, onSaveGhost }: FormationScreenProps) {
   const [ghostSaved, setGhostSaved] = useState(false)
   const [squads, setSquads] = useState<SquadSetup[]>([
     { id: 'squad-1', name: '前衛', unitIds: [], formation: 'horizontal' },
     { id: 'squad-2', name: '中衛', unitIds: [], formation: 'column' },
     { id: 'squad-3', name: '後衛', unitIds: [], formation: 'square' },
   ])
+
+  // 装備の割当変更（uid 重複を避けるため、他隊が使用中の uid は選べない）
+  const setEquipSlot = (squadId: string, slot: EquipSlot, uid: string) => {
+    setSquads(prev => prev.map(s => {
+      if (s.id !== squadId) return s
+      const equip = { ...(s.equip ?? {}) }
+      if (uid === '') delete equip[slot]
+      else equip[slot] = uid
+      return { ...s, equip }
+    }))
+  }
 
   const [dragSource, setDragSource] = useState<{ unitId: string; fromSquadId?: string } | null>(null)
 
@@ -237,6 +251,39 @@ export function FormationScreen({ roster, tokens, onHire, onStart, onSaveGhost }
                         )
                       })
                     )}
+                  </div>
+
+                  {/* 装備ロードアウト（隊単位・α3） */}
+                  <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                    {SLOTS.map(slot => {
+                      const selUid = squad.equip?.[slot] ?? ''
+                      // この隊が選べる装備: 当該スロット かつ 他隊未使用（自隊の現選択は含む）
+                      const usedByOthers = new Set(
+                        squads.filter(s => s.id !== squad.id)
+                          .flatMap(s => SLOTS.map(sl => s.equip?.[sl]).filter(Boolean) as string[])
+                      )
+                      const opts = inventory.filter(o =>
+                        EQUIP_DEFS[o.defId]?.slot === slot && !usedByOthers.has(o.uid))
+                      return (
+                        <select
+                          key={slot}
+                          value={selUid}
+                          onChange={e => setEquipSlot(squad.id, slot, e.target.value)}
+                          title={SLOT_LABEL[slot]}
+                          style={{
+                            background: selUid ? '#142814' : C.card, color: selUid ? C.green : C.sub,
+                            border: '1px solid #333', borderRadius: 4, padding: '1px 3px', fontSize: 9,
+                            cursor: 'pointer', maxWidth: 92,
+                          }}
+                        >
+                          <option value="">{SLOT_LABEL[slot]}：なし</option>
+                          {opts.map(o => {
+                            const d = EQUIP_DEFS[o.defId]
+                            return <option key={o.uid} value={o.uid}>{d.icon}{d.name} Lv{o.level}</option>
+                          })}
+                        </select>
+                      )
+                    })}
                   </div>
                 </div>
               )

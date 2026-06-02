@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { WorldState } from '@fb/sim-core'
+import type { WorldState, LayerEffect, AttrId } from '@fb/sim-core'
 import { MapScreen } from './screens/MapScreen'
 import { FormationScreen } from './screens/FormationScreen'
 import { BattleScreen } from './screens/BattleScreen'
@@ -9,16 +9,41 @@ import type { GameState, RosterUnit, SquadSetup, BattleDef, Ghost } from './game
 import { getBattleDef } from './game/campaign'
 import { makeInitialGameState, resetAllUnits, generateMercenary, MERCENARY_COST } from './game/army'
 import { makeGhostFromSquads, ghostToBattleDef, saveGhost } from './game/ghost'
+import { resolveEquip, gainEquipExp, equippedUids } from './game/equipment'
+import type { OwnedEquip, ResolvedEquip } from './game/equipment'
 import { saveGame } from './game/storage'
 import { C } from './ui/theme'
+
+// 属性別防御の合算
+function mergeArmor(a: Partial<Record<AttrId, number>> | undefined, b: Partial<Record<AttrId, number>>): Partial<Record<AttrId, number>> {
+  const out: Partial<Record<AttrId, number>> = { ...(a ?? {}) }
+  for (const [k, v] of Object.entries(b) as [AttrId, number][]) out[k] = (out[k] ?? 0) + v
+  return out
+}
+
+// 装備効果を LayerEffect 列（装備レイヤー）に変換
+function equipEffects(re: ResolvedEquip): LayerEffect[] {
+  const fx: LayerEffect[] = []
+  if (re.attackAdd)      fx.push({ layer: 'equipment', target: 'attack',      op: 'add', value: re.attackAdd,      priority: 0, source: '装備' })
+  if (re.defenseAdd)     fx.push({ layer: 'equipment', target: 'defense',     op: 'add', value: re.defenseAdd,     priority: 0, source: '装備' })
+  if (re.attackSpeedAdd) fx.push({ layer: 'equipment', target: 'attackSpeed', op: 'add', value: re.attackSpeedAdd, priority: 0, source: '装備' })
+  return fx
+}
 
 // WorldState を GameState + BattleDef から動的生成
 function makeWorldFromSetup(gameState: GameState, battleDef: BattleDef): WorldState {
   const allyUnits: Record<string, WorldState['units'][string]> = {}
   const enemyUnits: Record<string, WorldState['units'][string]> = {}
 
-  // 味方ユニット（GameState.roster + squads）
+  const ownedByUid = new Map<string, OwnedEquip>(gameState.inventory.map(o => [o.uid, o]))
+  // 隊ごとの装備解決を事前計算（ユニット・隊の両方で使う）
+  const reBySquad = new Map<string, ResolvedEquip>(
+    gameState.squads.map(s => [s.id, resolveEquip(s.equip, ownedByUid)]),
+  )
+
+  // 味方ユニット（GameState.roster + squads + 隊装備）
   for (const squad of gameState.squads) {
+    const re = reBySquad.get(squad.id)!
     for (const unitId of squad.unitIds) {
       const rosterUnit = gameState.roster.find(u => u.id === unitId)
       if (rosterUnit) {
@@ -35,12 +60,12 @@ function makeWorldFromSetup(gameState: GameState, battleDef: BattleDef): WorldSt
           gauge: 0,
           alive: true,
           isLeader: squad.unitIds[0] === unitId,
-          skills: rosterUnit.skills,
+          skills: [...rosterUnit.skills, ...equipEffects(re)],
           flankMod: rosterUnit.flankMod,
           rearMod: rosterUnit.rearMod,
-          range: rosterUnit.range,
-          attackAttr: rosterUnit.attackAttr,
-          armorDef: rosterUnit.armorDef,
+          range: rosterUnit.range + re.rangeAdd,
+          attackAttr: re.attackAttr ?? rosterUnit.attackAttr,
+          armorDef: mergeArmor(rosterUnit.armorDef, re.armorDef),
         }
       }
     }
@@ -75,18 +100,21 @@ function makeWorldFromSetup(gameState: GameState, battleDef: BattleDef): WorldSt
     }
   }
 
-  const allySquads = gameState.squads.map(s => ({
-    id: s.id,
-    name: s.name,
-    side: 'ally' as const,
-    unitIds: s.unitIds,
-    formation: s.formation,
-    pos: { x: battleDef.allyStartX, y: 18 + gameState.squads.indexOf(s) * 20 },
-    facing: 0,
-    moveQueue: [] as any[],
-    moveSpeed: 1.0,
-    movementType: 'forest' as const,
-  }))
+  const allySquads = gameState.squads.map(s => {
+    const re = reBySquad.get(s.id)!
+    return {
+      id: s.id,
+      name: s.name,
+      side: 'ally' as const,
+      unitIds: s.unitIds,
+      formation: s.formation,
+      pos: { x: battleDef.allyStartX, y: 18 + gameState.squads.indexOf(s) * 20 },
+      facing: 0,
+      moveQueue: [] as any[],
+      moveSpeed: 1.0 * (1 + re.moveMultPct / 100),
+      movementType: 'forest' as const,
+    }
+  })
 
   const enemySquads = battleDef.enemies.squads.map((s, idx) => ({
     id: s.id,
@@ -165,10 +193,14 @@ export default function App() {
   const handleResultContinue = (updatedRoster: RosterUnit[], earnedTokens: number) => {
     // ゴースト対戦は campaign 進捗（battleIndex）を進めない
     const isGhost = matchType === 'ghost'
+    // 出撃した隊が装備していた装備に経験値を付与（レベルアップ）
+    const usedUids = equippedUids(gameState.squads)
+    const newInventory = gainEquipExp(gameState.inventory, usedUids)
     const newGameState: GameState = {
       ...gameState,
       roster: updatedRoster,
       tokens: gameState.tokens + earnedTokens,
+      inventory: newInventory,
       battleIndex: isGhost ? gameState.battleIndex : gameState.battleIndex + 1,
       squads: [],
     }
@@ -222,6 +254,7 @@ export default function App() {
         <FormationScreen
           roster={gameState.roster}
           tokens={gameState.tokens}
+          inventory={gameState.inventory}
           onHire={handleHire}
           onStart={handleStartBattle}
           onSaveGhost={handleSaveGhost}

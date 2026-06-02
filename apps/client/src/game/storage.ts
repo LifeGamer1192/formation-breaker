@@ -1,5 +1,6 @@
 import type { GameState } from './types'
 import { makeInitialGameState } from './army'
+import { makeInitialInventory } from './equipment'
 
 const STORAGE_KEY = 'fb-game-state'
 
@@ -22,6 +23,7 @@ export function loadGame(): GameState | null {
       roster:      parsed.roster ?? [],
       squads:      parsed.squads ?? [],
       tokens:      parsed.tokens ?? 0,
+      inventory:   parsed.inventory ?? makeInitialInventory(),
       log:         parsed.log ?? [],
     }
   } catch (e) {

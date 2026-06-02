@@ -1,6 +1,7 @@
 import { mulberry32, ATTR_IDS } from '@fb/sim-core'
 import type { FormationType } from '@fb/sim-core'
 import type { RosterUnit, GameState, SquadSetup } from './types'
+import { makeInitialInventory } from './equipment'
 
 // ─── 初期兵士ロスター（カルタゴ陣営）──────────────────────────────
 export function makeInitialRoster(): RosterUnit[] {
@@ -202,6 +203,7 @@ export function makeInitialGameState(): GameState {
     roster: makeInitialRoster(),
     squads: [],
     tokens: 0,
+    inventory: makeInitialInventory(),
     log: ['キャンペーン開始'],
   }
 }

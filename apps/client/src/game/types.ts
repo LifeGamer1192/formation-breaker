@@ -1,4 +1,5 @@
 import type { UnitState, FormationType } from '@fb/sim-core'
+import type { SquadEquip, OwnedEquip } from './equipment'
 
 // ─── 兵士（所持ロスター用）─────────────────────────────────────────
 export interface RosterUnit extends UnitState {
@@ -12,6 +13,7 @@ export interface SquadSetup {
   name:      string
   unitIds:   string[]              // RosterUnit.id[] （リーダー = [0]）
   formation: FormationType
+  equip?:    SquadEquip            // α3: 隊の装備ロードアウト（スロット→所持装備uid）
 }
 
 // ─── バトル定義（各キャンペーン戦場のデータ）─────────────────
@@ -33,6 +35,7 @@ export interface GameState {
   roster:      RosterUnit[]   // 所持兵士一覧
   squads:      SquadSetup[]   // 現在の編成（最大5隊）
   tokens:      number         // 所持トークン（戦闘報酬で増え、傭兵購入で減る）
+  inventory:   OwnedEquip[]   // α3: 軍所有の装備インベントリ
   log:         string[]       // キャンペーンログ
 }
 
