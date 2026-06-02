@@ -9,6 +9,11 @@ export interface MapScreenProps {
   onSelectNode: (nodeId: string) => void
   onOpenGhost: () => void
   onOpenImport: () => void
+  cloudEnabled: boolean
+  cloudUserId: string | null
+  cloudMsg: { ok: boolean; text: string } | null
+  onCloudSave: () => void
+  onCloudLoad: () => void
 }
 
 type NodeState = 'cleared' | 'available' | 'locked'
@@ -21,7 +26,7 @@ const PAD_Y = 30
 const cx = (n: MapNode) => PAD_X + n.col * COL_W + 70
 const cy = (n: MapNode) => PAD_Y + n.row * ROW_H + 36
 
-export function MapScreen({ clearedNodes, frontier, onSelectNode, onOpenGhost, onOpenImport }: MapScreenProps) {
+export function MapScreen({ clearedNodes, frontier, onSelectNode, onOpenGhost, onOpenImport, cloudEnabled, cloudUserId, cloudMsg, onCloudSave, onCloudLoad }: MapScreenProps) {
   const nodes = Object.values(MAP_NODES)
   const total = nodes.length
   const stateOf = (id: string): NodeState =>
@@ -106,6 +111,31 @@ export function MapScreen({ clearedNodes, frontier, onSelectNode, onOpenGhost, o
         <Button variant="default" onClick={onOpenImport} style={{ fontSize: 13 }}>
           📥 局地戦インポート
         </Button>
+      </div>
+
+      {/* クラウドセーブ（本人認証・α10） */}
+      <div style={{ maxWidth: 420, margin: '16px auto 0', background: C.panel, borderRadius: 8, padding: 10 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+          <span style={{ fontSize: 12, fontWeight: 'bold', color: C.ally }}>☁️ クラウドセーブ</span>
+          <span style={{ fontSize: 9, color: cloudUserId ? C.green : C.sub }}>
+            {!cloudEnabled ? '未設定' : cloudUserId ? '接続済み' : 'サインイン中…'}
+          </span>
+        </div>
+        {!cloudEnabled ? (
+          <div style={{ fontSize: 10, color: C.sub }}>
+            docs/SUPABASE_SETUP.md の手順で認証を有効にするとクラウドセーブが使えます。
+          </div>
+        ) : (
+          <>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <Button variant="default" disabled={!cloudUserId} onClick={onCloudSave} style={{ fontSize: 11, padding: '5px 10px' }}>⬆️ 保存</Button>
+              <Button variant="default" disabled={!cloudUserId} onClick={onCloudLoad} style={{ fontSize: 11, padding: '5px 10px' }}>⬇️ 復元</Button>
+            </div>
+            {cloudMsg && (
+              <div style={{ fontSize: 10, color: cloudMsg.ok ? C.green : C.danger, marginTop: 5 }}>{cloudMsg.text}</div>
+            )}
+          </>
+        )}
       </div>
     </div>
   )

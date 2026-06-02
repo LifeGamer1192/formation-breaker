@@ -5,6 +5,20 @@ import { START_NODE } from './campaign'
 
 const STORAGE_KEY = 'fb-game-state'
 
+// 任意の（古い/外部の）セーブデータを現行スキーマへ正規化（ローカル/クラウド共用）
+export function normalizeGameState(parsed: Partial<GameState>): GameState {
+  return {
+    roster:      parsed.roster ?? [],
+    squads:      parsed.squads ?? [],
+    tokens:      parsed.tokens ?? 0,
+    inventory:   parsed.inventory ?? makeInitialInventory(),
+    recruitedBattles: parsed.recruitedBattles ?? [],
+    clearedNodes: parsed.clearedNodes ?? [],
+    frontier:     parsed.frontier ?? [START_NODE],
+    log:         parsed.log ?? [],
+  }
+}
+
 export function saveGame(gameState: GameState): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(gameState))
@@ -17,19 +31,7 @@ export function loadGame(): GameState | null {
   try {
     const data = localStorage.getItem(STORAGE_KEY)
     if (!data) return null
-    const parsed = JSON.parse(data) as Partial<GameState>
-    // マイグレーション: 旧セーブに無いフィールドを補完
-    // 旧 battleIndex 形式のセーブはキャンペーン進捗のみ初期化（roster等は保持）
-    return {
-      roster:      parsed.roster ?? [],
-      squads:      parsed.squads ?? [],
-      tokens:      parsed.tokens ?? 0,
-      inventory:   parsed.inventory ?? makeInitialInventory(),
-      recruitedBattles: parsed.recruitedBattles ?? [],
-      clearedNodes: parsed.clearedNodes ?? [],
-      frontier:     parsed.frontier ?? [START_NODE],
-      log:         parsed.log ?? [],
-    }
+    return normalizeGameState(JSON.parse(data) as Partial<GameState>)
   } catch (e) {
     console.error('Failed to load game:', e)
     return null

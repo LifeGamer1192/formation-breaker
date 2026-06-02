@@ -33,6 +33,34 @@ create policy "public insert" on public.cloud_ghosts for insert with check (true
 > 注: プロトタイプ用に匿名で読み書き可能にしています。本番では本人認証・レート制限・
 > 不正データ対策（PoC#4 のコマンド検証連携）を追加する想定です。
 
+## 2.5 クラウドセーブ（本人認証・α10）を使う場合
+
+クラウドセーブ（本人だけが自分のセーブを保存/復元）を有効にするには、以下も設定します。
+不要なら省略可（未設定でもアプリは動作し、クラウドセーブUIは「未設定」表示になります）。
+
+### a) 匿名サインインを有効化
+ダッシュボードの **Authentication → Sign In / Providers → Anonymous Sign-ins** を **ON** にします。
+（メール不要で各ブラウザに固有IDを割り当て、本人のセーブを識別します）
+
+### b) セーブ用テーブルを作成（SQL Editor）
+```sql
+create table public.saves (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  data jsonb not null,
+  updated_at timestamptz default now()
+);
+
+alter table public.saves enable row level security;
+
+-- 本人（auth.uid()）の行だけ read/insert/update 可
+create policy "own save select" on public.saves for select using (auth.uid() = user_id);
+create policy "own save insert" on public.saves for insert with check (auth.uid() = user_id);
+create policy "own save update" on public.saves for update using (auth.uid() = user_id);
+```
+
+設定後、ゲームのマップ画面の「☁️ クラウドセーブ」が「接続済み」になり、保存/復元できます。
+キャンペーン進捗は自動でもクラウドにバックアップされます。
+
 ## 3. API キーを取得
 
 ダッシュボードの **Project Settings → API** から以下を控えます：

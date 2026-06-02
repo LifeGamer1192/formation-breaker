@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { WorldState, LayerEffect, AttrId } from '@fb/sim-core'
 import { DEMO_TERRAIN } from '@fb/sim-core'
 import { MapScreen } from './screens/MapScreen'
@@ -16,7 +16,8 @@ import { makeGhostFromSquads, ghostToBattleDef, saveGhost } from './game/ghost'
 import { resolveEquip, gainEquipExp, equippedUids } from './game/equipment'
 import type { OwnedEquip, ResolvedEquip } from './game/equipment'
 import { resolveUltimate } from './game/ultimate'
-import { saveGame } from './game/storage'
+import { saveGame, normalizeGameState } from './game/storage'
+import { isCloudEnabled, ensureAnonAuth, saveCloud, loadCloud } from './game/supabase'
 import { C } from './ui/theme'
 
 // 属性別防御の合算
@@ -170,6 +171,33 @@ export default function App() {
   const [battleDef, setBattleDef] = useState<BattleDef | null>(null)
   const [matchType, setMatchType] = useState<'campaign' | 'ghost' | 'scenario'>('campaign')
   const [currentNodeId, setCurrentNodeId] = useState<string | null>(null)
+  const [cloudUserId, setCloudUserId] = useState<string | null>(null)
+  const [cloudMsg, setCloudMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
+  // 起動時に匿名サインイン（Supabase設定時のみ・ベストエフォート）
+  useEffect(() => {
+    if (!isCloudEnabled()) return
+    ensureAnonAuth().then(uid => { if (uid) setCloudUserId(uid) })
+  }, [])
+
+  // クラウドセーブ（本人のみ）
+  const handleCloudSave = async () => {
+    setCloudMsg({ ok: true, text: '⏳ 保存中...' })
+    const res = await saveCloud(gameState)
+    setCloudMsg(res.ok ? { ok: true, text: '☁️ クラウドに保存しました' } : { ok: false, text: `❌ ${res.error ?? '失敗'}` })
+  }
+
+  // クラウドロード（明示的・確認なしで上書きしない＝ボタン操作が明示確認）
+  const handleCloudLoad = async () => {
+    setCloudMsg({ ok: true, text: '⏳ 読込中...' })
+    const data = await loadCloud<GameState>()
+    if (!data) { setCloudMsg({ ok: false, text: 'クラウドセーブが見つかりません' }); return }
+    const gs = normalizeGameState(data)
+    setGameState(gs)
+    saveGame(gs)
+    setScreen('map')
+    setCloudMsg({ ok: true, text: '☁️ クラウドから復元しました' })
+  }
 
   // 各画面遷移（マップ分岐ノードを選択）
   const handleSelectNode = (nodeId: string) => {
@@ -283,6 +311,7 @@ export default function App() {
     }
     setGameState(newGameState)
     saveGame(newGameState)
+    if (cloudUserId) void saveCloud(newGameState) // 進捗を自動クラウドバックアップ（ベストエフォート）
     setScreen(isGhost ? 'ghost' : 'map')
   }
 
@@ -326,6 +355,11 @@ export default function App() {
           onSelectNode={handleSelectNode}
           onOpenGhost={handleOpenGhost}
           onOpenImport={handleOpenImport}
+          cloudEnabled={isCloudEnabled()}
+          cloudUserId={cloudUserId}
+          cloudMsg={cloudMsg}
+          onCloudSave={handleCloudSave}
+          onCloudLoad={handleCloudLoad}
         />
       )}
       {screen === 'ghost' && (
