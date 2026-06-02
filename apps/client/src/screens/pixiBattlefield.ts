@@ -96,6 +96,23 @@ export class PixiBattlefield {
       const baseColor = isAlly ? (isFront ? '#48aaff' : '#88ccff') : (isFront ? '#ff6644' : '#ff9977')
       const isSelected = squad.id === selectedId
 
+      // 射程円（隊の攻撃リーチを一目で表示・生存兵の最大 range = 装備/アイテム加算込み）
+      const reach = Math.max(0, ...aliveIds.map(id => world.units[id]?.range ?? 0))
+      if (reach > 0) {
+        const rPx = reach * SCALE
+        const ringAlpha = isSelected ? 0.85 : 0.35
+        // 破線リング（24分割の点線で「射程」と一目で分かる見た目に）
+        const SEG = 24
+        for (let i = 0; i < SEG; i += 2) {
+          const a1 = (i / SEG) * Math.PI * 2
+          const a2 = ((i + 1) / SEG) * Math.PI * 2
+          g.moveTo(px + Math.cos(a1) * rPx, py + Math.sin(a1) * rPx)
+            .arc(px, py, rPx, a1, a2)
+            .stroke({ width: isSelected ? 2 : 1, color: baseColor, alpha: ringAlpha })
+        }
+        if (isSelected) g.circle(px, py, rPx).fill({ color: baseColor, alpha: 0.05 })
+      }
+
       // 移動予定ライン
       if (squad.moveQueue.length > 0) {
         let prev = { x: px, y: py }
