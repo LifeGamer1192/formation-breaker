@@ -57,7 +57,7 @@ function makeWorldFromSetup(gameState: GameState, battleDef: BattleDef): WorldSt
           id: rosterUnit.id,
           name: rosterUnit.name,
           side: 'ally',
-          hp: rosterUnit.maxHp,
+          hp: Math.max(1, Math.min(rosterUnit.maxHp, rosterUnit.hp)), // α12: HP永続（現在HPで出撃）
           maxHp: rosterUnit.maxHp,
           attack: rosterUnit.attack,
           defense: rosterUnit.defense,
@@ -72,6 +72,7 @@ function makeWorldFromSetup(gameState: GameState, battleDef: BattleDef): WorldSt
           range: rosterUnit.range + re.rangeAdd,
           attackAttr: re.attackAttr ?? rosterUnit.attackAttr,
           armorDef: mergeArmor(rosterUnit.armorDef, re.armorDef),
+          regen: re.regenAdd || undefined,
           techniques: rosterUnit.techniques?.map(t => ({ ...t, gauge: 0 })),
         }
       }
@@ -226,6 +227,21 @@ export default function App() {
     setScreen('formation')
   }
 
+  // α12: 回復薬を使う（兵士のHPを最大50%回復・回復薬1消費）
+  const handleUsePotion = (unitId: string) => {
+    if (gameState.potions <= 0) return
+    const u = gameState.roster.find(r => r.id === unitId)
+    if (!u || u.hp >= u.maxHp) return
+    const heal = Math.ceil(u.maxHp * 0.5)
+    const gs: GameState = {
+      ...gameState,
+      potions: gameState.potions - 1,
+      roster: gameState.roster.map(r => r.id === unitId ? { ...r, hp: Math.min(r.maxHp, r.hp + heal), alive: true } : r),
+    }
+    setGameState(gs)
+    saveGame(gs)
+  }
+
   // α7: 兵士の削除（強制加入・ユニークは不可）。ベンチ兵のみ対象
   const handleDeleteUnit = (unitId: string) => {
     const u = gameState.roster.find(r => r.id === unitId)
@@ -289,24 +305,36 @@ export default function App() {
     const usedUids = equippedUids(gameState.squads)
     const newInventory = gainEquipExp(gameState.inventory, usedUids)
 
+    // α12: 戦闘終了時のHPをロスターへ反映（永続）。
+    // キャンペーン=戦死は1で復帰し以後は回復薬で立て直す。ゴースト練習は無償回復。
+    const finalRoster = updatedRoster.map(u => {
+      const wu = world?.units[u.id]
+      if (!wu) return u // 出撃していない兵はそのまま
+      if (isGhost) return { ...u, hp: u.maxHp, alive: true }
+      return { ...u, hp: wu.alive ? Math.min(u.maxHp, wu.hp) : 1, alive: true }
+    })
+
     // キャンペーン: クリアしたノードを記録し、frontier を次ノードへ（後戻り不可）
     let clearedNodes = gameState.clearedNodes
     let frontier = gameState.frontier
-    let tokenGain = 0 // メタ通貨はノードクリアで蓄積
+    let tokenGain = 0   // メタ通貨はノードクリアで蓄積
+    let potionGain = 0  // 回復薬もノードクリアで
     if (!isGhost && currentNodeId) {
       const node = getNode(currentNodeId)
       if (node && !clearedNodes.includes(currentNodeId)) {
         clearedNodes = [...clearedNodes, currentNodeId]
         frontier = node.next.filter(n => !clearedNodes.includes(n))
         tokenGain = 10
+        potionGain = 1
       }
     }
 
     const newGameState: GameState = {
       ...gameState,
-      roster: updatedRoster,
+      roster: finalRoster,
       gold: gameState.gold + earnedGold,       // 戦闘報酬はラン内通貨（金）へ
       tokens: gameState.tokens + tokenGain,    // メタ通貨はノードクリアで
+      potions: gameState.potions + potionGain,
       inventory: newInventory,
       clearedNodes,
       frontier,
@@ -376,8 +404,10 @@ export default function App() {
         <FormationScreen
           roster={gameState.roster}
           gold={gameState.gold}
+          potions={gameState.potions}
           inventory={gameState.inventory}
           onHire={handleHire}
+          onUsePotion={handleUsePotion}
           onDelete={handleDeleteUnit}
           onStart={handleStartBattle}
           onSaveGhost={handleSaveGhost}

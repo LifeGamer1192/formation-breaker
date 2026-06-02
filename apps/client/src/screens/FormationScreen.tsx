@@ -11,8 +11,10 @@ import { Button } from '../ui/Button'
 export interface FormationScreenProps {
   roster: RosterUnit[]
   gold: number
+  potions: number
   inventory: OwnedEquip[]
   onHire: () => void
+  onUsePotion: (unitId: string) => void
   onDelete: (unitId: string) => void
   onStart: (squads: SquadSetup[]) => void
   onSaveGhost: (squads: SquadSetup[]) => void
@@ -20,7 +22,7 @@ export interface FormationScreenProps {
 
 const FORMATIONS: FormationType[] = ['none', 'horizontal', 'column', 'square', 'arrowhead', 'circle', 'solo']
 
-export function FormationScreen({ roster, gold, inventory, onHire, onDelete, onStart, onSaveGhost }: FormationScreenProps) {
+export function FormationScreen({ roster, gold, potions, inventory, onHire, onUsePotion, onDelete, onStart, onSaveGhost }: FormationScreenProps) {
   const [ghostSaved, setGhostSaved] = useState(false)
   const [squads, setSquads] = useState<SquadSetup[]>([
     { id: 'squad-1', name: '前衛', unitIds: [], formation: 'horizontal' },
@@ -110,7 +112,7 @@ export function FormationScreen({ roster, gold, inventory, onHire, onDelete, onS
           background: C.card, borderRadius: 16, padding: '4px 12px',
           fontSize: 13, fontWeight: 'bold', color: C.gold, border: `1px solid ${C.gold}44`
         }}>
-          💰 {gold}
+          💰 {gold}　🧪 {potions}
         </span>
       </div>
 
@@ -169,6 +171,13 @@ export function FormationScreen({ roster, gold, inventory, onHire, onDelete, onS
                       </span>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ color: C.sub }}>Lv.{unit.level}</span>
+                        {unit.hp < unit.maxHp && potions > 0 && (
+                          <button
+                            onClick={e => { e.stopPropagation(); onUsePotion(unit.id) }}
+                            title="回復薬を使う（最大50%回復）"
+                            style={{ background: 'transparent', border: 'none', color: C.green, cursor: 'pointer', fontSize: 12, padding: 0, lineHeight: 1 }}
+                          >🧪</button>
+                        )}
                         {!unit.forced && (
                           <button
                             onClick={e => { e.stopPropagation(); onDelete(unit.id) }}
@@ -179,7 +188,7 @@ export function FormationScreen({ roster, gold, inventory, onHire, onDelete, onS
                       </span>
                     </div>
                     <div style={{ fontSize: 9, color: '#999' }}>
-                      HP {unit.maxHp} / ATK {unit.attack} / DEF {unit.defense}
+                      HP <span style={{ color: unit.hp < unit.maxHp ? C.danger : '#999' }}>{unit.hp}</span>/{unit.maxHp} / ATK {unit.attack} / DEF {unit.defense}
                       {unit.traitName && <span style={{ color: '#9c6', marginLeft: 4 }}>◆{unit.traitName}</span>}
                     </div>
                   </div>

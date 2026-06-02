@@ -58,13 +58,14 @@ export function tickCombat(world: WorldState, rng: Prng): WorldState {
 
   const newLog: string[] = []
 
-  // ① 攻撃ゲージ充填（実効 attackSpeed を使用）
+  // ① 攻撃ゲージ充填（実効 attackSpeed を使用）＋リジェネ（α12）
   for (const unit of Object.values(units)) {
     if (!unit.alive) continue
     const squad = findSquad(world, unit.id)
     const sa    = squadAlive(squad, world.units)
     const eff   = getEffectiveStats(unit, squad, { aliveCount: sa.length, squadUnits: sa, tick: world.tick })
     units[unit.id].gauge += eff.attackSpeed
+    if (unit.regen) units[unit.id].hp = Math.min(unit.maxHp, units[unit.id].hp + unit.regen)
   }
 
   // ② ゲージ満タン → 兵士単位で射程内の敵兵士を攻撃

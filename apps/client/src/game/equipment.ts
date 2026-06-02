@@ -24,6 +24,7 @@ export interface EquipDef {
   attackSpeedAdd?: number                       // 攻撃速度補正（加算）
   rangeAdd?:       number                       // 射程補正
   moveMultPct?:    number                       // 移動速度補正（%）
+  regen?:          number                       // α12: 毎tick回復HP（特殊能力）
   perLevelAtk?:    number                       // +1レベルあたり攻撃力
   perLevelArmor?:  number                       // +1レベルあたり全属性防御
 }
@@ -42,6 +43,7 @@ export const EQUIP_DEFS: Record<string, EquipDef> = {
   thunderBody: { id: 'thunderBody', name: '雷の鎧',     slot: 'body', icon: '⚡', attackAdd: 30, armorDef: { slash: 25, pierce: 25, strike: 25, thunder: 100 }, perLevelArmor: 5 },
   bronzeArms:  { id: 'bronzeArms',  name: '青銅の小手', slot: 'arms', icon: '🧤', armorDef: { slash: 5, pierce: 5, strike: 5 }, perLevelArmor: 1 },
   bronzeHead:  { id: 'bronzeHead',  name: '青銅の兜',   slot: 'head', icon: '⛑️', armorDef: { slash: 10, pierce: 10, strike: 10 }, perLevelArmor: 1 },
+  eshmunHead:  { id: 'eshmunHead',  name: 'エシュムンの兜', slot: 'head', icon: '💚', armorDef: { slash: 10, pierce: 10, strike: 10 }, regen: 20, moveMultPct: -5 },
   bronzeLegs:  { id: 'bronzeLegs',  name: '青銅の具足', slot: 'legs', icon: '🥾', armorDef: { slash: 5, pierce: 5, strike: 5 }, perLevelArmor: 1 },
   melqartLegs: { id: 'melqartLegs', name: 'メルカルトの具足', slot: 'legs', icon: '🔥', armorDef: { fire: 100 }, moveMultPct: 5, perLevelArmor: 1 },
 }
@@ -64,6 +66,7 @@ export interface ResolvedEquip {
   attackSpeedAdd: number
   rangeAdd:       number
   moveMultPct:    number
+  regenAdd:       number
   attackAttr?:    AttrId
   armorDef:       Partial<Record<AttrId, number>>
 }
@@ -77,7 +80,7 @@ function applyLevel(def: EquipDef, level: number): { attackAdd: number; armorBon
 }
 
 export function resolveEquip(loadout: SquadEquip | undefined, ownedByUid: Map<string, OwnedEquip>): ResolvedEquip {
-  const r: ResolvedEquip = { attackAdd: 0, defenseAdd: 0, attackSpeedAdd: 0, rangeAdd: 0, moveMultPct: 0, armorDef: {} }
+  const r: ResolvedEquip = { attackAdd: 0, defenseAdd: 0, attackSpeedAdd: 0, rangeAdd: 0, moveMultPct: 0, regenAdd: 0, armorDef: {} }
   if (!loadout) return r
 
   for (const slot of SLOTS) {
@@ -94,6 +97,7 @@ export function resolveEquip(loadout: SquadEquip | undefined, ownedByUid: Map<st
     r.attackSpeedAdd += def.attackSpeedAdd ?? 0
     r.rangeAdd       += def.rangeAdd ?? 0
     r.moveMultPct    += def.moveMultPct ?? 0
+    r.regenAdd       += def.regen ?? 0
     if (slot === 'weapon' && def.attr) r.attackAttr = def.attr
     if (def.armorDef) {
       for (const [a, v] of Object.entries(def.armorDef) as [AttrId, number][]) {
@@ -142,6 +146,7 @@ export function makeInitialInventory(): OwnedEquip[] {
     mkOwned('longBow'),
     mkOwned('bronzeBody'), mkOwned('bronzeBody'),
     mkOwned('bronzeHead'), mkOwned('bronzeHead'),
+    mkOwned('eshmunHead'),
     mkOwned('bronzeArms'),
     mkOwned('bronzeLegs'),
   ]

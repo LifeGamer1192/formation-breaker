@@ -12,6 +12,7 @@ export function normalizeGameState(parsed: Partial<GameState>): GameState {
     squads:      parsed.squads ?? [],
     gold:        parsed.gold ?? 0,
     tokens:      parsed.tokens ?? 0,
+    potions:     parsed.potions ?? 3,
     inventory:   parsed.inventory ?? makeInitialInventory(),
     recruitedBattles: parsed.recruitedBattles ?? [],
     clearedNodes: parsed.clearedNodes ?? [],

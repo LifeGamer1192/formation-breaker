@@ -40,6 +40,7 @@ export interface GameState {
   squads:      SquadSetup[]   // 現在の編成（最大5隊）
   gold:        number         // α11: ラン内通貨（戦闘報酬で増え、傭兵購入で減る）
   tokens:      number         // メタ通貨（ノードクリアで蓄積。周回をまたいで残す想定）
+  potions:     number         // α12: 回復薬（編成画面で兵士を回復）
   inventory:   OwnedEquip[]   // α3: 軍所有の装備インベントリ
   recruitedBattles: string[]  // α7: 強制加入を適用済みの戦場ID（再付与防止）
   // α8: マップ分岐（後戻り不可）

@@ -75,6 +75,8 @@ export interface UnitState {
   techniques?:  TechniqueRuntime[]
   // α8: 大将（最後尾隊のリーダー）。離脱でその陣営は敗北
   isCommander?: boolean
+  // α12: リジェネ（毎tick回復するHP・装備/スキル特殊能力由来）
+  regen?:       number
 }
 
 export interface SquadState {
