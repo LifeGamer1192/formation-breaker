@@ -8,13 +8,15 @@ import { FORMATION_MOVE_MULT, getEffectiveFormation } from './formation'
 
 // ─── デモ地形グリッド（10列×6行、各セル10×10ゲーム単位）─────────────
 // 仕様書L165: 山・平地・森・砂漠・沼は移動可
+// スポーン行(y18/38/58 = 行1/3/5)は水平に開通させ、障害物は非スポーン行(0/2/4)へ。
+// → 基本AIで全隊が確実に交戦でき、堀塀破壊(行2の堀・行0/4の塀)も体験できる。
 export const DEMO_TERRAIN: TerrainType[][] = [
-  ['plain',  'plain',   'forest',   'forest',   'river',    'plain',    'plain',    'mountain', 'plain', 'plain'],
-  ['plain',  'forest',  'forest',   'forest',   'river',    'plain',    'forest',   'mountain', 'plain', 'plain'],
-  ['plain',  'forest',  'plain',    'plain',    'plain',    'plain',    'forest',   'plain',    'plain', 'plain'],
-  ['plain',  'plain',   'plain',    'plain',    'river',    'mountain', 'forest',   'plain',    'wall',  'plain'],
-  ['plain',  'plain',   'plain',    'plain',    'river',    'plain',    'plain',    'plain',    'wall',  'plain'],
-  ['plain',  'plain',   'plain',    'plain',    'plain',    'plain',    'plain',    'plain',    'plain', 'plain'],
+  ['river',  'river',   'plain',    'plain',    'plain',    'wall',     'plain',    'mountain', 'plain', 'plain'], // 行0: 障害物
+  ['plain',  'plain',   'forest',   'forest',   'plain',    'plain',    'plain',    'mountain', 'plain', 'plain'], // 行1: スポーン(開通)
+  ['plain',  'forest',  'plain',    'moat',     'plain',    'plain',    'forest',   'plain',    'plain', 'plain'], // 行2: 障害物
+  ['plain',  'plain',   'plain',    'plain',    'plain',    'mountain', 'forest',   'plain',    'plain', 'plain'], // 行3: スポーン(開通)
+  ['plain',  'plain',   'plain',    'plain',    'plain',    'plain',    'wall',     'plain',    'plain', 'plain'], // 行4: 障害物
+  ['plain',  'plain',   'plain',    'plain',    'plain',    'plain',    'plain',    'plain',    'plain', 'plain'], // 行5: スポーン(開通)
 ]
 
 export function getTerrainAt(pos: { x: number; y: number }, grid = DEMO_TERRAIN): TerrainType {
@@ -40,9 +42,9 @@ function tickSquad(squad: SquadState, allSquads: SquadState[], aliveCount: numbe
 
   const target = squad.moveQueue[0]
   const newFacing = angleTo(squad.pos, target)
-  // 速度は現在地の地形で決まる（移動タイプ × 地形）
+  // 速度は現在地の地形で決まる（移動タイプ × 地形）。移動不可セル上は脱出のため通常速度
   const terrain = getTerrainAt(squad.pos, grid)
-  const pct = TERRAIN_SPEED[squad.movementType][terrain] ?? 100
+  const pct = isImpassable(terrain) ? 100 : (TERRAIN_SPEED[squad.movementType][terrain] ?? 100)
   // 実効陣形（フォールダウン後）の移動速度補正を掛ける（仕様書 L103-110）
   const effFormation = getEffectiveFormation(squad.formation, aliveCount)
   const formMult = FORMATION_MOVE_MULT[effFormation]
@@ -105,13 +107,64 @@ function tickTerrainDestruction(world: WorldState, grid: TerrainType[][]): {
   return { terrain: newGrid ?? grid, terrainDmg: dmg, log }
 }
 
+// ─── 敵AI（隊ごと・α12+）──────────────────────────────────────────
+// front: 最寄り敵へ接近し射程より少し近い距離で停止。障害物は回避。
+// rear : 接近に加え、近づきすぎたら敵を向いたまま後退（カイト）。
+function nearestEnemySquad(squad: SquadState, allSquads: SquadState[], units: WorldState['units']): SquadState | null {
+  const enemies = allSquads.filter(s => s.side !== squad.side && s.unitIds.some(id => units[id]?.alive))
+  if (enemies.length === 0) return null
+  return enemies.reduce((a, b) => dist(squad.pos, a.pos) < dist(squad.pos, b.pos) ? a : b)
+}
+
+function squadRange(squad: SquadState, units: WorldState['units']): number {
+  const ranges = squad.unitIds.map(id => units[id]).filter(u => u?.alive).map(u => u!.range)
+  return ranges.length ? Math.max(...ranges) : 10
+}
+
+// 障害物回避つき1ステップ。基準角を中心に左右へ振って通れる方向を探す（場外も回避）
+function stepAvoiding(pos: { x: number; y: number }, angle: number, speed: number, grid: TerrainType[][]): { x: number; y: number } {
+  // 直進を優先しつつ、塞がれたら徐々に大きく振って壁沿いに滑る（最大±115°）
+  const offsets = [0, 0.4, -0.4, 0.8, -0.8, 1.2, -1.2, 1.6, -1.6, 2.0, -2.0]
+  for (const off of offsets) {
+    const a = angle + off
+    const np = { x: pos.x + Math.cos(a) * speed, y: pos.y + Math.sin(a) * speed }
+    if (np.x < 2 || np.x > 98 || np.y < 2 || np.y > 58) continue
+    if (!isImpassable(getTerrainAt(np, grid))) return np
+  }
+  return pos
+}
+
+function aiMove(squad: SquadState, allSquads: SquadState[], units: WorldState['units'], aliveCount: number, grid: TerrainType[][]): SquadState {
+  const target = nearestEnemySquad(squad, allSquads, units)
+  if (!target) return squad
+  const d = dist(squad.pos, target.pos)
+  const facing = angleTo(squad.pos, target.pos)
+  const desired = Math.max(2, squadRange(squad, units) - 2) // 射程より少し近い距離
+  const terrain = getTerrainAt(squad.pos, grid)
+  // 移動不可セル上にいる場合は脱出のため通常速度扱い
+  const pct = isImpassable(terrain) ? 100 : (TERRAIN_SPEED[squad.movementType][terrain] ?? 100)
+  const speed = squad.moveSpeed * pct / 100 * FORMATION_MOVE_MULT[getEffectiveFormation(squad.formation, aliveCount)]
+
+  if (d > desired + 0.5) {
+    return { ...squad, pos: stepAvoiding(squad.pos, facing, Math.min(speed, d - desired), grid), facing }
+  }
+  if (squad.ai === 'rear' && d < desired * 0.7) {
+    // 近づきすぎ → 敵を向いたまま後退
+    return { ...squad, pos: stepAvoiding(squad.pos, facing + Math.PI, speed, grid), facing }
+  }
+  return { ...squad, facing } // 適正距離 → 停止（敵を向く）
+}
+
 export function tickMovement(world: WorldState): WorldState {
   const grid = world.terrain ?? DEMO_TERRAIN
   const squads = world.squads.map(s => {
     // 全ユニット離脱済みの隊は移動しない・ゲージも止める
     const alive = s.unitIds.filter(id => world.units[id]?.alive).length
     if (alive === 0) return s
-    return fillUlt(tickSquad(s, world.squads, alive, grid))
+    const moved = s.ai
+      ? aiMove(s, world.squads, world.units, alive, grid)
+      : tickSquad(s, world.squads, alive, grid)
+    return fillUlt(moved)
   })
   const dz = tickTerrainDestruction({ ...world, squads }, grid)
   return {

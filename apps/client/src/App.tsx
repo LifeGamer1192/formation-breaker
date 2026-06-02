@@ -148,6 +148,8 @@ function makeWorldFromSetup(gameState: GameState, battleDef: BattleDef): WorldSt
     moveQueue: [] as any[],
     moveSpeed: 1.0,
     movementType: 'plain' as const,
+    // 敵AI: 「後衛/本陣」は離れて戦う rear、それ以外は接近する front（隊ごと）
+    ai: (s.name.includes('後衛') || s.name.includes('本陣') ? 'rear' : 'front') as 'front' | 'rear',
   }))
 
   return {
@@ -338,7 +340,7 @@ export default function App() {
       inventory: newInventory,
       clearedNodes,
       frontier,
-      squads: [],
+      // squads は維持（編成・装備を次マップへ引き継ぐ）
     }
     setGameState(newGameState)
     saveGame(newGameState)
@@ -406,6 +408,7 @@ export default function App() {
           gold={gameState.gold}
           potions={gameState.potions}
           inventory={gameState.inventory}
+          initialSquads={gameState.squads}
           onHire={handleHire}
           onUsePotion={handleUsePotion}
           onDelete={handleDeleteUnit}

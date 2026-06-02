@@ -94,6 +94,8 @@ export interface SquadState {
   // α5: 隊の必殺技（リーダー由来）と充填ゲージ
   ult?:         UltimateRuntime
   ultGauge?:    number
+  // α12+: 敵AIアルゴリズム（front=接近して射程手前で停止 / rear=接近＋近すぎたら離れる）
+  ai?:          'front' | 'rear'
 }
 
 export interface WorldState {

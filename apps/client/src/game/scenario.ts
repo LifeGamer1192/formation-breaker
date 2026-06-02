@@ -74,6 +74,8 @@ export function scenarioToWorld(scn: BattleScenario): WorldState {
         moveQueue: [] as { x: number; y: number }[],
         moveSpeed: sq.moveSpeed ?? 1, movementType: sq.movementType ?? 'plain',
         ult: resolveUltimate(leader?.ultId, 1), ultGauge: 0,
+        // 敵側はAIで動く（後衛/本陣=rear、他=front）
+        ai: side === 'enemy' ? ((sq.name.includes('後衛') || sq.name.includes('本陣')) ? 'rear' as const : 'front' as const) : undefined,
       }
     })
   }

@@ -1,7 +1,25 @@
 import { useState } from 'react'
-import { FORMATION_LABEL } from '@fb/sim-core'
+import { FORMATION_LABEL, ATTRIBUTES } from '@fb/sim-core'
 import type { FormationType } from '@fb/sim-core'
 import type { RosterUnit, SquadSetup } from '../game/types'
+import { ULTIMATES } from '../game/ultimate'
+import { TECHNIQUES } from '../game/technique'
+
+// ホバー時の詳細全ステータス（native title）
+function unitTooltip(u: RosterUnit): string {
+  const lines: string[] = []
+  lines.push(`${u.name}（${u.kind === 'unique' ? 'ユニーク' : '一般'}${u.isLeader ? '・リーダー' : ''}）`)
+  lines.push(`Lv.${u.level}  EXP ${u.exp}/${u.level * 100}`)
+  lines.push(`HP ${u.hp}/${u.maxHp}`)
+  lines.push(`攻撃 ${u.attack}  防御 ${u.defense}  攻撃速度 ${u.attackSpeed}  射程 ${u.range}`)
+  lines.push(`攻撃属性 ${ATTRIBUTES[u.attackAttr ?? 'slash'].label}  側面${u.flankMod}%  背面${u.rearMod}%`)
+  if (u.armorDef && Object.keys(u.armorDef).length)
+    lines.push('属性防御 ' + Object.entries(u.armorDef).map(([a, v]) => `${ATTRIBUTES[a as keyof typeof ATTRIBUTES].label}+${v}`).join(' '))
+  if (u.traitName) lines.push(`特性 ${u.traitName}`)
+  if (u.ultId && ULTIMATES[u.ultId]) lines.push(`必殺技 ${ULTIMATES[u.ultId].name}`)
+  if (u.techniques?.length) lines.push('技 ' + u.techniques.map(t => TECHNIQUES[t.id]?.name ?? t.name).join('・'))
+  return lines.join('\n')
+}
 import { MERCENARY_COST, autoArrange } from '../game/army'
 import { EQUIP_DEFS, SLOTS, SLOT_LABEL } from '../game/equipment'
 import type { OwnedEquip, EquipSlot } from '../game/equipment'
@@ -13,6 +31,7 @@ export interface FormationScreenProps {
   gold: number
   potions: number
   inventory: OwnedEquip[]
+  initialSquads?: SquadSetup[]
   onHire: () => void
   onUsePotion: (unitId: string) => void
   onDelete: (unitId: string) => void
@@ -22,13 +41,20 @@ export interface FormationScreenProps {
 
 const FORMATIONS: FormationType[] = ['none', 'horizontal', 'column', 'square', 'arrowhead', 'circle', 'solo']
 
-export function FormationScreen({ roster, gold, potions, inventory, onHire, onUsePotion, onDelete, onStart, onSaveGhost }: FormationScreenProps) {
+const DEFAULT_SQUADS: SquadSetup[] = [
+  { id: 'squad-1', name: '前衛', unitIds: [], formation: 'horizontal' },
+  { id: 'squad-2', name: '中衛', unitIds: [], formation: 'column' },
+  { id: 'squad-3', name: '後衛', unitIds: [], formation: 'square' },
+]
+
+export function FormationScreen({ roster, gold, potions, inventory, initialSquads, onHire, onUsePotion, onDelete, onStart, onSaveGhost }: FormationScreenProps) {
   const [ghostSaved, setGhostSaved] = useState(false)
-  const [squads, setSquads] = useState<SquadSetup[]>([
-    { id: 'squad-1', name: '前衛', unitIds: [], formation: 'horizontal' },
-    { id: 'squad-2', name: '中衛', unitIds: [], formation: 'column' },
-    { id: 'squad-3', name: '後衛', unitIds: [], formation: 'square' },
-  ])
+  // 前回の編成を引き継ぐ（存在しない兵士IDは除去してサニタイズ）
+  const [squads, setSquads] = useState<SquadSetup[]>(() => {
+    const rosterIds = new Set(roster.map(u => u.id))
+    const src = initialSquads && initialSquads.length > 0 ? initialSquads : DEFAULT_SQUADS
+    return src.map(s => ({ ...s, unitIds: s.unitIds.filter(id => rosterIds.has(id)) }))
+  })
 
   // 装備の割当変更（uid 重複を避けるため、他隊が使用中の uid は選べない）
   const setEquipSlot = (squadId: string, slot: EquipSlot, uid: string) => {
@@ -150,6 +176,7 @@ export function FormationScreen({ roster, gold, potions, inventory, onHire, onUs
                   <div
                     key={unit.id}
                     draggable
+                    title={unitTooltip(unit)}
                     onDragStart={() => handleDragStart(unit.id)}
                     onDragEnd={() => setDragSource(null)}
                     style={{
@@ -246,6 +273,7 @@ export function FormationScreen({ roster, gold, potions, inventory, onHire, onUs
                           <div
                             key={unitId}
                             draggable
+                            title={unitTooltip(unit)}
                             onDragStart={() => handleDragStart(unitId, squad.id)}
                             onDragEnd={() => setDragSource(null)}
                             style={{
