@@ -1,7 +1,33 @@
+import { useState } from 'react'
 import { MAP_NODES } from '../game/campaign'
 import type { MapNode } from '../game/campaign'
 import { C } from '../ui/theme'
 import { Button } from '../ui/Button'
+import { useTheme } from '../ui/ThemeContext'
+import { THEME_IDS, THEME_LABEL } from '../game/theme'
+
+// ⚙️ グラフィックテーマ切り替えパネル（α15）
+function ThemeSwitch() {
+  const { theme, setTheme } = useTheme()
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ position: 'absolute', top: 0, right: 0 }}>
+      <button onClick={() => setOpen(o => !o)} title="グラフィックテーマ"
+        style={{ background: C.panel, color: C.text, border: `1px solid ${C.sub}`, borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: 14 }}>⚙️</button>
+      {open && (
+        <div style={{ position: 'absolute', top: 32, right: 0, background: C.panel, border: `1px solid ${C.sub}`, borderRadius: 8, padding: 10, width: 160, zIndex: 10 }}>
+          <div style={{ fontSize: 11, color: C.sub, marginBottom: 6 }}>グラフィックテーマ</div>
+          {THEME_IDS.map(id => (
+            <label key={id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '4px 0', cursor: 'pointer' }}>
+              <input type="radio" name="fb-theme" checked={theme === id} onChange={() => setTheme(id)} />
+              {THEME_LABEL[id]}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export interface MapScreenProps {
   clearedNodes: string[]
@@ -40,7 +66,8 @@ export function MapScreen({ clearedNodes, frontier, tokens, onSelectNode, onOpen
   const height = PAD_Y * 2 + maxRow * ROW_H + 72
 
   return (
-    <div style={{ maxWidth: 760, margin: '0 auto', padding: '12px', minHeight: '100vh' }}>
+    <div style={{ maxWidth: 760, margin: '0 auto', padding: '12px', minHeight: '100vh', position: 'relative' }}>
+      <ThemeSwitch />
       <h1 style={{ fontSize: 18, marginBottom: 4, textAlign: 'center' }}>🗺️ キャンペーン（分岐マップ）</h1>
       <div style={{ fontSize: 10, color: C.sub, textAlign: 'center', marginBottom: 8 }}>
         攻略済 {clearedNodes.length} / {total}

@@ -3,6 +3,7 @@ import type { RosterUnit } from '../game/types'
 import { applyLevelUps, awardXp, calcBattleReward } from '../game/army'
 import { C } from '../ui/theme'
 import { Button } from '../ui/Button'
+import { FaceIcon } from '../ui/FaceIcon'
 
 export interface ResultScreenProps {
   world: WorldState
@@ -77,7 +78,9 @@ export function ResultScreen({ world, roster, reward, scenario, onContinue, onRe
           const expNeeded = unit.level * 100
           const expPct = Math.min(100, Math.round((unit.exp / expNeeded) * 100))
           return (
-            <div key={uid} style={{ padding: '8px 0', borderBottom: '1px solid #333' }}>
+            <div key={uid} style={{ padding: '8px 0', borderBottom: '1px solid #333', display: 'flex', gap: 8 }}>
+              <FaceIcon unit={unit} size={38} />
+              <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                 fontSize: 11, marginBottom: 4, color: leveledUp ? C.green : C.text
@@ -103,6 +106,7 @@ export function ResultScreen({ world, roster, reward, scenario, onContinue, onRe
               </div>
               <div style={{ fontSize: 8, color: C.muted, textAlign: 'right', marginTop: 1 }}>
                 {unit.exp} / {expNeeded}
+              </div>
               </div>
             </div>
           )

@@ -11,6 +11,8 @@ import type {
 } from '@fb/sim-core'
 import type { BattleDef } from '../game/types'
 import { ULT_ITEMS, resolveUltItem } from '../game/ultItem'
+import { useTheme } from '../ui/ThemeContext'
+import { FaceIcon } from '../ui/FaceIcon'
 import { skillMarks } from '../game/skills'
 import { PixiBattlefield } from './pixiBattlefield'
 
@@ -43,7 +45,9 @@ function UnitCard({ unit, squad, color, squadUnits, tick, onToggleTech }: {
   const gPct  = Math.min(100, Math.round(unit.gauge / unit.gaugeMax * 100))
   const diff  = (b: number, e: number) => e === b ? '' : e > b ? ` ▲${e - b}` : ` ▼${b - e}`
   return (
-    <div style={{ marginBottom: 10, opacity: unit.alive ? 1 : 0.35 }}>
+    <div style={{ marginBottom: 10, opacity: unit.alive ? 1 : 0.35, display: 'flex', gap: 6 }}>
+      <FaceIcon unit={unit} size={34} round={5} />
+      <div style={{ flex: 1, minWidth: 0 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
         <span>
           <span title={`攻撃属性: ${ATTRIBUTES[unit.attackAttr ?? 'slash'].label}`}>
@@ -123,6 +127,7 @@ function UnitCard({ unit, squad, color, squadUnits, tick, onToggleTech }: {
           })}
         </div>
       )}
+      </div>
     </div>
   )
 }
@@ -242,6 +247,8 @@ export interface BattleScreenProps {
 
 export function BattleScreen({ battleDef, initialWorld, onBattleEnd, ultItems, onUseUltItem }: BattleScreenProps) {
   const SEED = 42
+  const { theme } = useTheme()
+  const [texVer,   setTexVer]   = useState(0)   // テーマ画像読込完了で再描画を促す
   const [world,    setWorld]    = useState<WorldState>(initialWorld)
   // 必殺技アイテムの残数（戦闘ローカル。発動でローカル減算＋onUseUltItemで永続化）
   const [ultItemCounts, setUltItemCounts] = useState<Record<string, number>>(() => ({ ...(ultItems ?? {}) }))
@@ -278,6 +285,12 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd, ultItems, o
     return () => { disposed = true; pixiRef.current?.destroy(); pixiRef.current = null }
   }, [])
 
+  // テーマ画像の読み込み（テーマ変更・初期化時）。完了で再描画を促す
+  useEffect(() => {
+    if (!pixiReady || !pixiRef.current) return
+    pixiRef.current.setTheme(theme, () => setTexVer(v => v + 1))
+  }, [pixiReady, theme])
+
   // 状態変化のたびに Pixi で再描画
   useEffect(() => {
     if (!pixiReady || !pixiRef.current) return
@@ -288,7 +301,7 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd, ultItems, o
       isDeploy: mode === 'deploy',
       damageFloats,
     })
-  }, [pixiReady, world, selected, mode, damageFloats])
+  }, [pixiReady, world, selected, mode, damageFloats, texVer])
 
   // ダメージフロート検出・更新
   useEffect(() => {

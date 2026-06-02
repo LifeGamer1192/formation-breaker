@@ -1,8 +1,10 @@
 // ─── PixiJS 戦場レンダラー（α10: Canvas2D から移行）──────────────────
 // 既存 drawBattlefield と同一の見た目を Pixi の Graphics/Text で再現する。
-import { Application, Container, Graphics, Text } from 'pixi.js'
+import { Application, Container, Graphics, Text, Assets, Texture } from 'pixi.js'
 import { buildUnitView, SQUAD_SPREAD } from '@fb/sim-core'
 import type { WorldState, TerrainType } from '@fb/sim-core'
+import { ALL_TERRAINS, ALL_UNIT_SPRITES, terrainUrl, bgUrl, terrainFile, unitSpriteFile } from '../game/theme'
+import type { ThemeId } from '../game/theme'
 
 const SCALE = 6
 const CW = 600
@@ -34,6 +36,30 @@ export class PixiBattlefield {
   readonly app: Application
   private gfx = new Graphics()
   private textLayer = new Container()
+  // α15: テーマ画像テクスチャ（無いものは色塗りフォールバック）
+  private themeId: ThemeId | null = null
+  private texTerrain = new Map<string, Texture>()
+  private texUnit = new Map<string, Texture>()
+  private texBg: Texture | null = null
+
+  // テーマのテクスチャを読み込む（失敗したものはスキップ＝フォールバック）。完了時 onReady。
+  async setTheme(themeId: ThemeId, onReady?: () => void): Promise<void> {
+    if (this.themeId === themeId) { onReady?.(); return }
+    this.themeId = themeId
+    const tryLoad = async (url: string): Promise<Texture | null> => {
+      try { const t = await Assets.load(url); return t && (t as Texture).width > 1 ? (t as Texture) : null }
+      catch { return null }
+    }
+    const terr = new Map<string, Texture>()
+    await Promise.all(ALL_TERRAINS.map(async id => { const t = await tryLoad(terrainUrl(themeId, id)); if (t) terr.set(id, t) }))
+    const units = new Map<string, Texture>()
+    await Promise.all(ALL_UNIT_SPRITES.map(async s => { const t = await tryLoad(`/themes/${themeId}/unit/${s}.png`); if (t) units.set(s, t) }))
+    const bg = await tryLoad(bgUrl(themeId))
+    // 競合（連続切替）防止: 最新テーマのみ反映
+    if (this.themeId !== themeId) return
+    this.texTerrain = terr; this.texUnit = units; this.texBg = bg
+    onReady?.()
+  }
 
   static async create(): Promise<PixiBattlefield> {
     const app = new Application()
@@ -65,14 +91,22 @@ export class PixiBattlefield {
     g.clear()
     for (const c of this.textLayer.removeChildren()) c.destroy()
 
-    // ── 地形タイル ──
+    // ── 戦場背景（テーマ画像があれば全面に敷く）──
+    if (this.texBg) g.texture(this.texBg, 0xffffff, 0, 0, CW, CH)
+
+    // ── 地形タイル（テーマ画像 or 色塗りフォールバック）──
     const grid = world.terrain ?? []
     grid.forEach((row, ri) => row.forEach((terrain, ci) => {
       const x = ci * TILE_PX, y = ri * TILE_PX
-      g.rect(x, y, TILE_PX, TILE_PX).fill(TERRAIN_COLOR[terrain]).stroke({ width: 1, color: '#000000', alpha: 0.09 })
-      if (IMPASSABLE.has(terrain)) {
-        for (let o = -TILE_PX; o < TILE_PX; o += 10) {
-          g.moveTo(x + o, y).lineTo(x + o + TILE_PX, y + TILE_PX).stroke({ width: 2, color: '#ffffff', alpha: 0.2 })
+      const tex = this.texTerrain.get(terrainFile(terrain))
+      if (tex) {
+        g.texture(tex, 0xffffff, x, y, TILE_PX, TILE_PX)
+      } else {
+        g.rect(x, y, TILE_PX, TILE_PX).fill(TERRAIN_COLOR[terrain]).stroke({ width: 1, color: '#000000', alpha: 0.09 })
+        if (IMPASSABLE.has(terrain)) {
+          for (let o = -TILE_PX; o < TILE_PX; o += 10) {
+            g.moveTo(x + o, y).lineTo(x + o + TILE_PX, y + TILE_PX).stroke({ width: 2, color: '#ffffff', alpha: 0.2 })
+          }
         }
       }
     }))
@@ -171,8 +205,14 @@ export class PixiBattlefield {
 
         if (isSelected) g.circle(ux, uy, UNIT_R + 3).stroke({ width: 2, color: '#ffffff' })
 
-        // 本体（HP連動アルファ）
-        g.circle(ux, uy, UNIT_R).fill({ color: baseColor, alpha: (100 + hpPct * 155) / 255 }).stroke({ width: 1.5, color: baseColor })
+        // 本体: テーマのユニットスプライト or 色塗り円（HP連動アルファ）
+        const spriteTex = this.texUnit.get(unitSpriteFile({ side: squad.side, isLeader: unit.isLeader, range: unit.range, movementType: squad.movementType }))
+        if (spriteTex) {
+          const SP = UNIT_R * 2.7
+          g.texture(spriteTex, 0xffffff, ux - SP / 2, uy - SP / 2, SP, SP)
+        } else {
+          g.circle(ux, uy, UNIT_R).fill({ color: baseColor, alpha: (100 + hpPct * 155) / 255 }).stroke({ width: 1.5, color: baseColor })
+        }
 
         if (unit.isLeader) g.circle(ux, uy - UNIT_R - 3, 3).fill('#ffdd00')
         if (unit.isCommander) g.circle(ux, uy, UNIT_R + 5).stroke({ width: 2, color: '#ff3344' })

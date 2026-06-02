@@ -27,6 +27,7 @@ import { ITEM_DEFS, MAX_ITEMS_PER_SQUAD } from '../game/item'
 import type { OwnedItem } from '../game/item'
 import { C } from '../ui/theme'
 import { Button } from '../ui/Button'
+import { FaceIcon } from '../ui/FaceIcon'
 
 export interface FormationScreenProps {
   roster: RosterUnit[]
@@ -202,6 +203,9 @@ export function FormationScreen({ roster, gold, potions, inventory, items, initi
                       transition: 'opacity 0.12s, transform 0.12s',
                     }}
                   >
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <FaceIcon unit={unit} size={42} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                       <span>
                         {unit.kind === 'unique'
@@ -231,6 +235,8 @@ export function FormationScreen({ roster, gold, potions, inventory, items, initi
                     <div style={{ fontSize: 9, color: '#999' }}>
                       HP <span style={{ color: unit.hp < unit.maxHp ? C.danger : '#999' }}>{unit.hp}</span>/{unit.maxHp} / ATK {unit.attack} / DEF {unit.defense}
                       {unit.traitName && <span style={{ color: '#9c6', marginLeft: 4 }}>◆{unit.traitName}</span>}
+                    </div>
+                    </div>
                     </div>
                   </div>
                 )
