@@ -2,9 +2,10 @@
 // 仕様書 L143-148: 隊単位・移動予定キュー・地形乗算・常時薄表示
 
 import type { WorldState, SquadState } from './types'
-import { dist, angleTo, stepToward, TERRAIN_SPEED, isImpassable } from './geo'
+import { dist, angleTo, TERRAIN_SPEED, isImpassable } from './geo'
 import type { TerrainType } from './geo'
 import { FORMATION_MOVE_MULT, getEffectiveFormation } from './formation'
+import { steerToward } from './pathfind'
 
 // ─── デモ地形グリッド（10列×6行、各セル10×10ゲーム単位）─────────────
 // 仕様書L165: 山・平地・森・砂漠・沼は移動可
@@ -41,7 +42,6 @@ function tickSquad(squad: SquadState, allSquads: SquadState[], aliveCount: numbe
   }
 
   const target = squad.moveQueue[0]
-  const newFacing = angleTo(squad.pos, target)
   // 速度は現在地の地形で決まる（移動タイプ × 地形）。移動不可セル上は脱出のため通常速度
   const terrain = getTerrainAt(squad.pos, grid)
   const pct = isImpassable(terrain) ? 100 : (TERRAIN_SPEED[squad.movementType][terrain] ?? 100)
@@ -50,12 +50,10 @@ function tickSquad(squad: SquadState, allSquads: SquadState[], aliveCount: numbe
   const formMult = FORMATION_MOVE_MULT[effFormation]
   const effectiveSpeed = squad.moveSpeed * pct / 100 * formMult
 
-  const newPos = stepToward(squad.pos, target, effectiveSpeed)
-
-  // 移動不可地形へは進入しない（手前で停止・向きだけ更新）。α8
-  if (isImpassable(getTerrainAt(newPos, grid))) {
-    return { ...squad, facing: newFacing }
-  }
+  // α19: A* で堀塀を自動回避しつつ目的地へ（直線が通れば直進）
+  const newPos = steerToward(squad.pos, target, effectiveSpeed, grid)
+  const newFacing = (newPos.x === squad.pos.x && newPos.y === squad.pos.y)
+    ? angleTo(squad.pos, target) : angleTo(squad.pos, newPos)
 
   const arrived = dist(newPos, target) < effectiveSpeed * 0.6
   return {
@@ -146,10 +144,13 @@ function aiMove(squad: SquadState, allSquads: SquadState[], units: WorldState['u
   const speed = squad.moveSpeed * pct / 100 * FORMATION_MOVE_MULT[getEffectiveFormation(squad.formation, aliveCount)]
 
   if (d > desired + 0.5) {
-    return { ...squad, pos: stepAvoiding(squad.pos, facing, Math.min(speed, d - desired), grid), facing }
+    // α19: A* で堀塀を自動回避して接近（射程手前で停止）
+    const np = steerToward(squad.pos, target.pos, Math.min(speed, d - desired), grid)
+    const nf = (np.x === squad.pos.x && np.y === squad.pos.y) ? facing : angleTo(squad.pos, np)
+    return { ...squad, pos: np, facing: nf }
   }
   if (squad.ai === 'rear' && d < desired * 0.7) {
-    // 近づきすぎ → 敵を向いたまま後退
+    // 近づきすぎ → 敵を向いたまま後退（局所回避）
     return { ...squad, pos: stepAvoiding(squad.pos, facing + Math.PI, speed, grid), facing }
   }
   return { ...squad, facing } // 適正距離 → 停止（敵を向く）

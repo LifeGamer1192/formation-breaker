@@ -282,6 +282,103 @@ function armorDefFor(armorDef, attr) {
   return armorDef?.[attr] ?? 0;
 }
 
+// packages/sim-core/src/pathfind.ts
+var CELL = 10;
+var terrainAt = (p, grid) => {
+  const c = Math.min(grid[0].length - 1, Math.max(0, Math.floor(p.x / CELL)));
+  const r = Math.min(grid.length - 1, Math.max(0, Math.floor(p.y / CELL)));
+  return grid[r]?.[c] ?? "plain";
+};
+var cellOf = (p, grid) => ({
+  r: Math.min(grid.length - 1, Math.max(0, Math.floor(p.y / CELL))),
+  c: Math.min(grid[0].length - 1, Math.max(0, Math.floor(p.x / CELL)))
+});
+var center = (r, c) => ({ x: c * CELL + CELL / 2, y: r * CELL + CELL / 2 });
+var passable = (r, c, grid) => r >= 0 && r < grid.length && c >= 0 && c < grid[0].length && !isImpassable(grid[r][c]);
+var NB = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [-1, 1], [1, -1], [1, 1]];
+function findPath(startPos, goalPos, grid) {
+  const s = cellOf(startPos, grid), g = cellOf(goalPos, grid);
+  const cols = grid[0].length;
+  const key = (r, c) => r * cols + c;
+  const sk = key(s.r, s.c), gk = key(g.r, g.c);
+  if (sk === gk) return [center(s.r, s.c)];
+  if (!passable(g.r, g.c, grid)) return [];
+  const gScore = /* @__PURE__ */ new Map([[sk, 0]]);
+  const came = /* @__PURE__ */ new Map();
+  const open = [{ k: sk, r: s.r, c: s.c, f: 0 }];
+  const closed = /* @__PURE__ */ new Set();
+  const h = (r, c) => Math.hypot(r - g.r, c - g.c);
+  while (open.length) {
+    let bi = 0;
+    for (let i = 1; i < open.length; i++) if (open[i].f < open[bi].f) bi = i;
+    const cur = open.splice(bi, 1)[0];
+    if (cur.k === gk) {
+      const cells = [gk];
+      let k = gk;
+      while (came.has(k)) {
+        k = came.get(k);
+        cells.push(k);
+      }
+      cells.reverse();
+      return cells.map((kk) => center(Math.floor(kk / cols), kk % cols));
+    }
+    closed.add(cur.k);
+    for (const [dr, dc] of NB) {
+      const nr = cur.r + dr, nc = cur.c + dc;
+      if (!passable(nr, nc, grid)) continue;
+      if (dr !== 0 && dc !== 0) {
+        if (!passable(cur.r + dr, cur.c, grid) || !passable(cur.r, cur.c + dc, grid)) continue;
+      }
+      const nk = key(nr, nc);
+      if (closed.has(nk)) continue;
+      const step = dr !== 0 && dc !== 0 ? Math.SQRT2 : 1;
+      const tentative = (gScore.get(cur.k) ?? Infinity) + step;
+      if (tentative < (gScore.get(nk) ?? Infinity)) {
+        came.set(nk, cur.k);
+        gScore.set(nk, tentative);
+        const f = tentative + h(nr, nc);
+        const ex = open.find((o) => o.k === nk);
+        if (ex) ex.f = f;
+        else open.push({ k: nk, r: nr, c: nc, f });
+      }
+    }
+  }
+  return [];
+}
+function lineBlocked(a, b, grid) {
+  const d = dist(a, b);
+  const steps = Math.max(1, Math.ceil(d / 3));
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    const p = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+    if (isImpassable(terrainAt(p, grid))) return true;
+  }
+  return false;
+}
+function steerToward(pos, goal, speed, grid) {
+  const moved = (np) => np.x !== pos.x || np.y !== pos.y;
+  const advance = (to) => {
+    const d = dist(pos, to);
+    if (d <= 1e-6) return pos;
+    const r = Math.min(1, speed / d);
+    const np = { x: pos.x + (to.x - pos.x) * r, y: pos.y + (to.y - pos.y) * r };
+    return isImpassable(terrainAt(np, grid)) ? pos : np;
+  };
+  if (!lineBlocked(pos, goal, grid)) {
+    const np = advance(goal);
+    if (moved(np)) return np;
+  }
+  const path = findPath(pos, goal, grid);
+  if (path.length < 2) return pos;
+  for (let i = path.length - 1; i >= 1; i--) {
+    if (!lineBlocked(pos, path[i], grid)) {
+      const np = advance(path[i]);
+      if (moved(np)) return np;
+    }
+  }
+  return pos;
+}
+
 // packages/sim-core/src/movement.ts
 var DEMO_TERRAIN = [
   ["river", "river", "plain", "plain", "plain", "wall", "plain", "mountain", "plain", "plain"],
@@ -316,16 +413,13 @@ function tickSquad(squad, allSquads, aliveCount, grid) {
     return squad;
   }
   const target = squad.moveQueue[0];
-  const newFacing = angleTo(squad.pos, target);
   const terrain = getTerrainAt(squad.pos, grid);
   const pct = isImpassable(terrain) ? 100 : TERRAIN_SPEED[squad.movementType][terrain] ?? 100;
   const effFormation = getEffectiveFormation(squad.formation, aliveCount);
   const formMult = FORMATION_MOVE_MULT[effFormation];
   const effectiveSpeed = squad.moveSpeed * pct / 100 * formMult;
-  const newPos = stepToward(squad.pos, target, effectiveSpeed);
-  if (isImpassable(getTerrainAt(newPos, grid))) {
-    return { ...squad, facing: newFacing };
-  }
+  const newPos = steerToward(squad.pos, target, effectiveSpeed, grid);
+  const newFacing = newPos.x === squad.pos.x && newPos.y === squad.pos.y ? angleTo(squad.pos, target) : angleTo(squad.pos, newPos);
   const arrived = dist(newPos, target) < effectiveSpeed * 0.6;
   return {
     ...squad,
@@ -352,8 +446,8 @@ function tickTerrainDestruction(world, grid) {
     for (let c = 0; c < grid[r].length; c++) {
       const t = grid[r][c];
       if (t !== "moat" && t !== "wall") continue;
-      const center = { x: c * 10 + 5, y: r * 10 + 5 };
-      if (!allyPos.some((p) => dist(p, center) <= WALL_RANGE)) continue;
+      const center2 = { x: c * 10 + 5, y: r * 10 + 5 };
+      if (!allyPos.some((p) => dist(p, center2) <= WALL_RANGE)) continue;
       const key = `${r},${c}`;
       const nd = (dmg[key] ?? 0) + WALL_RATE;
       dmg[key] = nd;
@@ -395,7 +489,9 @@ function aiMove(squad, allSquads, units, aliveCount, grid) {
   const pct = isImpassable(terrain) ? 100 : TERRAIN_SPEED[squad.movementType][terrain] ?? 100;
   const speed = squad.moveSpeed * pct / 100 * FORMATION_MOVE_MULT[getEffectiveFormation(squad.formation, aliveCount)];
   if (d > desired + 0.5) {
-    return { ...squad, pos: stepAvoiding(squad.pos, facing, Math.min(speed, d - desired), grid), facing };
+    const np = steerToward(squad.pos, target.pos, Math.min(speed, d - desired), grid);
+    const nf = np.x === squad.pos.x && np.y === squad.pos.y ? facing : angleTo(squad.pos, np);
+    return { ...squad, pos: np, facing: nf };
   }
   if (squad.ai === "rear" && d < desired * 0.7) {
     return { ...squad, pos: stepAvoiding(squad.pos, facing + Math.PI, speed, grid), facing };
@@ -640,20 +736,20 @@ function applyUltEffect(world, caster, ult, targetPos, resetGauge) {
   let disable = null;
   const aliveOf = (sq) => sq.unitIds.map((id) => world.units[id]).filter((u) => u?.alive);
   if (ult.kind === "aoeDamage") {
-    let center = targetPos;
-    if (!center) {
+    let center2 = targetPos;
+    if (!center2) {
       const enemySquads = world.squads.filter((s) => s.side !== caster.side && aliveOf(s).length > 0);
       if (enemySquads.length === 0) return world;
       const near = enemySquads.reduce((a, b) => dist(caster.pos, a.pos) < dist(caster.pos, b.pos) ? a : b);
-      center = near.pos;
+      center2 = near.pos;
     }
-    if (dist(caster.pos, center) > ult.range + ult.radius) return world;
+    if (dist(caster.pos, center2) > ult.range + ult.radius) return world;
     const attr = ult.attr ?? "fire";
     let hit = 0;
     for (const u of Object.values(units)) {
       if (!u.alive || u.side === caster.side) continue;
       const uv = view.get(u.id);
-      if (!uv || dist(uv.pos, center) > ult.radius) continue;
+      if (!uv || dist(uv.pos, center2) > ult.radius) continue;
       const sq = world.squads.find((s) => s.unitIds.includes(u.id));
       const sa = aliveOf(sq);
       const defEff = getEffectiveStats(u, sq, { aliveCount: sa.length, squadUnits: sa, tick: world.tick });
@@ -699,20 +795,20 @@ function applyUltEffect(world, caster, ult, targetPos, resetGauge) {
     const scope = ult.radius > 0 ? "\u7BC4\u56F2\u56DE\u5FA9" : "\u81EA\u968A\u56DE\u5FA9";
     newLog.push(`[T${world.tick}] \u2728${caster.name}: ${ult.icon}${ult.name}\uFF01 ${scope}\uFF08${healed}\u4F53 +${amount}\uFF09`);
   } else if (ult.kind === "terrain") {
-    let center = targetPos;
-    if (!center) {
+    let center2 = targetPos;
+    if (!center2) {
       const enemySquads = world.squads.filter((s) => s.side !== caster.side && aliveOf(s).length > 0);
       if (enemySquads.length === 0) return world;
-      center = enemySquads.reduce((a, b) => dist(caster.pos, a.pos) < dist(caster.pos, b.pos) ? a : b).pos;
+      center2 = enemySquads.reduce((a, b) => dist(caster.pos, a.pos) < dist(caster.pos, b.pos) ? a : b).pos;
     }
-    if (dist(caster.pos, center) > ult.range + ult.radius) return world;
+    if (dist(caster.pos, center2) > ult.range + ult.radius) return world;
     const type = ult.terrainType ?? "wall";
     const grid = (world.terrain ?? DEMO_TERRAIN).map((row) => [...row]);
     let changed = 0;
     for (let r = 0; r < grid.length; r++) {
       for (let c = 0; c < grid[r].length; c++) {
         const cx = c * 10 + 5, cy = r * 10 + 5;
-        if (dist({ x: cx, y: cy }, center) <= ult.radius && grid[r][c] !== type) {
+        if (dist({ x: cx, y: cy }, center2) <= ult.radius && grid[r][c] !== type) {
           grid[r][c] = type;
           changed++;
         }
@@ -729,17 +825,17 @@ function applyUltEffect(world, caster, ult, targetPos, resetGauge) {
     }
     newLog.push(`[T${world.tick}] \u2728${caster.name}: ${ult.icon}${ult.name}\uFF01 \u653B\u6483\u5C5E\u6027\u2192${ATTRIBUTES[attr].icon}\uFF08${((ult.durationTicks ?? 200) / 20).toFixed(0)}\u79D2\uFF09`);
   } else if (ult.kind === "elephantDisable") {
-    let center = targetPos;
-    if (!center) {
+    let center2 = targetPos;
+    if (!center2) {
       const enemySquads = world.squads.filter((s) => s.side !== caster.side && aliveOf(s).length > 0);
       if (enemySquads.length === 0) return world;
-      center = enemySquads.reduce((a, b) => dist(caster.pos, a.pos) < dist(caster.pos, b.pos) ? a : b).pos;
+      center2 = enemySquads.reduce((a, b) => dist(caster.pos, a.pos) < dist(caster.pos, b.pos) ? a : b).pos;
     }
-    if (dist(caster.pos, center) > ult.range + ult.radius) return world;
+    if (dist(caster.pos, center2) > ult.range + ult.radius) return world;
     const ids = /* @__PURE__ */ new Set();
     for (const s of world.squads) {
       if (s.side === caster.side) continue;
-      if (dist(center, s.pos) > ult.radius) continue;
+      if (dist(center2, s.pos) > ult.radius) continue;
       if (!s.unitIds.some((id) => world.units[id]?.alive && world.units[id]?.isElephant)) continue;
       ids.add(s.id);
     }
@@ -871,15 +967,18 @@ export {
   dist,
   executeUltimate,
   executeUltimateWith,
+  findPath,
   fixed,
   getEffectiveFormation,
   getEffectiveStats,
   getTerrainAt,
   getUnitPos,
   isImpassable,
+  lineBlocked,
   mulberry32,
   randInt,
   runReplay,
+  steerToward,
   stepToward,
   stepWorld,
   tickCombat,
