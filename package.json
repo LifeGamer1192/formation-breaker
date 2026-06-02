@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "npm run dev --workspace=apps/client",
     "build": "npm run build --workspace=apps/client",
-    "preview": "npm run preview --workspace=apps/client"
+    "preview": "npm run preview --workspace=apps/client",
+    "build:edge": "esbuild packages/sim-core/src/index.ts --bundle --format=esm --platform=neutral --outfile=supabase/functions/_shared/sim-core.mjs"
   }
 }

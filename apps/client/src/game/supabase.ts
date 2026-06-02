@@ -119,3 +119,66 @@ export async function loadCloud<T = unknown>(): Promise<T | null> {
     return null
   }
 }
+
+// ─── クロス端末アカウント連携（α17）──────────────────────────────────
+// 匿名アカウントにメール/パスワードを紐付け、別端末で同じアカウントにサインインできる。
+export interface Identity { email: string | null; isAnonymous: boolean }
+
+export async function getIdentity(): Promise<Identity | null> {
+  const client = getClient()
+  if (!client) return null
+  try {
+    const { data: { user } } = await client.auth.getUser()
+    if (!user) return null
+    return { email: user.email ?? null, isAnonymous: !user.email && (user as { is_anonymous?: boolean }).is_anonymous !== false }
+  } catch { return null }
+}
+
+// 現在の（匿名）アカウントにメール＋パスワードを紐付ける（クロス端末化）
+export async function linkEmail(email: string, password: string): Promise<{ ok: boolean; error?: string }> {
+  const client = getClient()
+  if (!client) return { ok: false, error: 'Supabase未設定' }
+  try {
+    const { error } = await client.auth.updateUser({ email, password })
+    if (error) return { ok: false, error: error.message }
+    return { ok: true }
+  } catch (e) { return { ok: false, error: String(e) } }
+}
+
+// 別端末でメール＋パスワードでサインイン（連携済みアカウントを引き継ぐ）
+export async function signInWithEmail(email: string, password: string): Promise<{ ok: boolean; error?: string }> {
+  const client = getClient()
+  if (!client) return { ok: false, error: 'Supabase未設定' }
+  try {
+    const { error } = await client.auth.signInWithPassword({ email, password })
+    if (error) return { ok: false, error: error.message }
+    return { ok: true }
+  } catch (e) { return { ok: false, error: String(e) } }
+}
+
+// OAuth（Google等）で連携・サインイン（リダイレクト）
+export async function signInWithOAuth(provider: 'google' | 'github'): Promise<{ ok: boolean; error?: string }> {
+  const client = getClient()
+  if (!client) return { ok: false, error: 'Supabase未設定' }
+  try {
+    const { error } = await client.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.origin } })
+    if (error) return { ok: false, error: error.message }
+    return { ok: true }
+  } catch (e) { return { ok: false, error: String(e) } }
+}
+
+// ─── サーバー権威ゴースト送信（α17）──────────────────────────────────
+// 初期World＋replay＋主張する勝者を Edge Function(verify-ghost) に送り、
+// 決定論再シミュで照合が通ったものだけ verified として保存される。
+export async function submitVerifiedGhost(args: {
+  name: string; ghost: Ghost; initialWorld: unknown; replay: unknown; claimedWinner: unknown
+}): Promise<{ ok: boolean; verified?: boolean; stored?: boolean; error?: string }> {
+  const client = getClient()
+  if (!client) return { ok: false, error: 'Supabase未設定' }
+  try {
+    const { data, error } = await client.functions.invoke('verify-ghost', { body: args })
+    if (error) return { ok: false, error: error.message }
+    const r = data as { verified?: boolean; stored?: boolean; reason?: string }
+    return { ok: !!r.verified, verified: r.verified, stored: r.stored, error: r.reason }
+  } catch (e) { return { ok: false, error: String(e) } }
+}

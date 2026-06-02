@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { MAP_NODES } from '../game/campaign'
 import type { MapNode } from '../game/campaign'
 import { C } from '../ui/theme'
@@ -6,6 +6,40 @@ import { Button } from '../ui/Button'
 import { useTheme } from '../ui/ThemeContext'
 import { THEME_IDS, THEME_LABEL } from '../game/theme'
 import { parseMod, saveMod, clearSavedMod, activeModName, SAMPLE_MOD } from '../game/mod'
+import { isCloudEnabled, getIdentity, linkEmail, signInWithEmail, signInWithOAuth } from '../game/supabase'
+
+// 🔗 クロス端末アカウント連携（α17）。匿名→メール紐付け / 別端末でサインイン。
+function AccountPanel() {
+  const [email, setEmail] = useState('')
+  const [pw, setPw] = useState('')
+  const [ident, setIdent] = useState<{ email: string | null; isAnonymous: boolean } | null>(null)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  useEffect(() => { getIdentity().then(setIdent) }, [])
+  if (!isCloudEnabled()) return null
+  const done = (r: { ok: boolean; error?: string }, okText: string) =>
+    setMsg(r.ok ? { ok: true, text: okText } : { ok: false, text: '❌ ' + (r.error ?? '失敗') })
+  return (
+    <div style={{ maxWidth: 420, margin: '12px auto 0', background: C.panel, borderRadius: 8, padding: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+        <span style={{ fontSize: 12, fontWeight: 'bold', color: C.ally }}>🔗 アカウント連携（クロス端末）</span>
+        <span style={{ fontSize: 9, color: ident?.email ? C.green : C.sub }}>{ident?.email ? ident.email : '匿名'}</span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+        <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="メールアドレス"
+          style={{ fontSize: 11, padding: 5, background: '#11131f', color: '#cde', border: `1px solid ${C.sub}`, borderRadius: 5 }} />
+        <input type="password" value={pw} onChange={e => setPw(e.target.value)} placeholder="パスワード"
+          style={{ fontSize: 11, padding: 5, background: '#11131f', color: '#cde', border: `1px solid ${C.sub}`, borderRadius: 5 }} />
+      </div>
+      <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+        <Button variant="accent" onClick={() => linkEmail(email, pw).then(r => done(r, '✅ このアカウントに連携しました'))} style={{ fontSize: 11, padding: '5px 10px' }}>連携</Button>
+        <Button variant="default" onClick={() => signInWithEmail(email, pw).then(r => { done(r, '✅ サインインしました'); if (r.ok) setTimeout(() => location.reload(), 500) })} style={{ fontSize: 11, padding: '5px 10px' }}>サインイン</Button>
+        <Button variant="default" onClick={() => signInWithOAuth('google')} style={{ fontSize: 11, padding: '5px 10px' }}>Google</Button>
+      </div>
+      <div style={{ fontSize: 9, color: C.sub, marginTop: 5 }}>連携後、別端末で同じメール/パスワードでサインインすると進行を引き継げます。</div>
+      {msg && <div style={{ fontSize: 10, color: msg.ok ? C.green : C.danger, marginTop: 5 }}>{msg.text}</div>}
+    </div>
+  )
+}
 
 // 🧩 Mod 差し替えパネル（α16）。適用/解除は再読込で全UIへ確実に反映。
 function ModPanel() {
@@ -199,6 +233,7 @@ export function MapScreen({ clearedNodes, frontier, tokens, onSelectNode, onOpen
         )}
       </div>
 
+      <AccountPanel />
       <ModPanel />
     </div>
   )

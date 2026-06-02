@@ -96,3 +96,32 @@ Vercel プロジェクトの **Settings → Environment Variables** に同じ2�
 2. ゴースト画面の保存済みゴースト行で「☁️」→ クラウドにアップロード
 3. 別のブラウザ／端末でアプリを開き、ゴースト画面の「🔄 取得」→ 一覧に出る
 4. 「⬇️ 保存」でローカルに取り込み、「⚔️ 挑戦」で対戦
+
+---
+
+## α17: サーバー権威の不正対策＋クロス端末アカウント連携
+
+### スキーマ（cloud_ghosts に検証列を追加 / saves）
+`supabase/schema.sql` を SQL Editor で実行する（`verified` / `winner` / `ticks` 列、RLS を含む）。
+- 閲覧は誰でも可。クライアントから直接挿入できるのは `verified=false` の未検証ゴーストのみ。
+- `verified=true` は Edge Function（service_role）経由でのみ保存される。
+
+### Edge Function（決定論再シミュ検証）
+`supabase/functions/verify-ghost/` は、提出された (初期World, replay, 主張する勝者) を
+sim-core で再シミュして照合し、一致した結果だけ `verified=true` で保存する。
+
+デプロイ手順:
+```
+npm run build:edge          # sim-core を _shared/sim-core.mjs に再バンドル
+supabase functions deploy verify-ghost
+```
+`SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` は Supabase が関数環境に自動注入する。
+
+クライアントは `submitVerifiedGhost({ name, ghost, initialWorld, replay, claimedWinner })`
+（`game/supabase.ts`）で呼び出す。改ざんした勝敗は再生結果と一致せず却下される（HTTP 422）。
+
+### クロス端末アカウント連携
+マップ画面の「🔗 アカウント連携」で、匿名アカウントにメール＋パスワードを紐付けられる
+（`linkEmail`）。別端末で同じメール/パスワードでサインイン（`signInWithEmail`）すると
+進行を引き継げる。Google等の OAuth は Supabase ダッシュボードの Authentication →
+Providers で有効化すると `signInWithOAuth('google')` が使える。
