@@ -31,7 +31,7 @@ export interface UltimateRuntime {
   id:            string
   name:          string
   icon:          string
-  kind:          'aoeDamage' | 'squadBuff' | 'heal' | 'terrain'
+  kind:          'aoeDamage' | 'squadBuff' | 'heal' | 'terrain' | 'attrChange'
   range:         number            // 発動可能距離（隊中心→対象）
   radius:        number            // 効果半径（範囲技。heal: 0=自隊のみ / >0=範囲内の味方全隊。terrain: 変化半径）
   ultSpeed:      number            // ゲージ充填速度/tick
@@ -78,6 +78,8 @@ export interface UnitState {
   isCommander?: boolean
   // α12: リジェネ（毎tick回復するHP・装備/スキル特殊能力由来）
   regen?:       number
+  // α13: 通常攻撃属性の時限上書き（必殺技 attrChange 由来。tick < untilTick の間だけ有効）
+  attrOverride?: { attr: AttrId; untilTick: number }
 }
 
 export interface SquadState {

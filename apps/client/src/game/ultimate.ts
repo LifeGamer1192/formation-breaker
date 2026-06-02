@@ -35,6 +35,11 @@ export const ULTIMATES: Record<string, UltCatalogEntry> = {
     terrainType: 'wall', range: 40, radius: 12, ultSpeed: 2, gaugeMax: 100,
     desc: '最寄りの敵地点に石壁を生成し進路を妨害（半径12のマスを壁に）',
   },
+  enchantFire: {
+    id: 'enchantFire', name: '火炎の付与', icon: '🔥', kind: 'attrChange',
+    attr: 'fire', range: 50, radius: 0, ultSpeed: 1, gaugeMax: 100, durationTicks: 240,
+    desc: '一定時間（12秒）、自隊の通常攻撃を火属性に変える（弱点突き）',
+  },
 }
 
 // ultId（兵士の持つ必殺技）→ 隊にセットする UltimateRuntime を解決

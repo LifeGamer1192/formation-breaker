@@ -99,7 +99,10 @@ export function tickCombat(world: WorldState, rng: Prng): WorldState {
 
     // α2: 攻撃属性に対応する防御力を使う
     // 属性別防御力 = 基礎/レイヤー防御(共通) + 攻撃属性に対応する防具防御(armorDef)
-    const atkAttr   = unit.attackAttr ?? 'slash'
+    // α13: attrChange 必殺技による時限上書きが有効なら、その属性で攻撃する
+    const atkAttr   = (unit.attrOverride && world.tick < unit.attrOverride.untilTick)
+      ? unit.attrOverride.attr
+      : (unit.attackAttr ?? 'slash')
     const attrDef   = defEff.defense + armorDefFor(target.armorDef, atkAttr)
 
     // 向き判定（攻撃側の兵士座標 vs 守備側の兵士座標・守備兵士自身の向き）
@@ -304,6 +307,14 @@ function applyUltEffect(world: WorldState, caster: SquadState, ult: UltimateRunt
     if (changed === 0) return world // 変化なし → 不発
     newTerrain = grid
     newLog.push(`[T${world.tick}] ✨${caster.name}: ${ult.icon}${ult.name}！ 地形を${type}へ（${changed}マス）`)
+  } else if (ult.kind === 'attrChange') {
+    // 属性変更（α13）。自隊の通常攻撃属性を一定時間だけ指定属性へ上書き（弱点突き）。
+    const attr = ult.attr ?? 'fire'
+    const until = world.tick + (ult.durationTicks ?? 200)
+    for (const u of aliveOf(caster)) {
+      units[u.id] = { ...units[u.id], attrOverride: { attr, untilTick: until } }
+    }
+    newLog.push(`[T${world.tick}] ✨${caster.name}: ${ult.icon}${ult.name}！ 攻撃属性→${ATTRIBUTES[attr].icon}（${((ult.durationTicks ?? 200) / 20).toFixed(0)}秒）`)
   }
 
   // ゲージ消費（通常必殺技のみ。アイテム発動はゲージに依存しない）
