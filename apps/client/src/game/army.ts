@@ -1,4 +1,4 @@
-import { mulberry32 } from '@fb/sim-core'
+import { mulberry32, ATTR_IDS } from '@fb/sim-core'
 import type { FormationType } from '@fb/sim-core'
 import type { RosterUnit, GameState, SquadSetup } from './types'
 
@@ -9,6 +9,7 @@ export function makeInitialRoster(): RosterUnit[] {
       id: 'unit_hannibal',
       name: 'ハンニバル',
       side: 'ally',
+      attackAttr: 'thunder',
       hp: 100,
       maxHp: 100,
       attack: 80,
@@ -29,6 +30,7 @@ export function makeInitialRoster(): RosterUnit[] {
       id: 'unit_mago',
       name: 'マゴ・バルカ',
       side: 'ally',
+      attackAttr: 'slash',
       hp: 90,
       maxHp: 90,
       attack: 75,
@@ -49,6 +51,7 @@ export function makeInitialRoster(): RosterUnit[] {
       id: 'unit_carthage_a',
       name: 'カルタゴ兵A',
       side: 'ally',
+      attackAttr: 'slash',
       hp: 70,
       maxHp: 70,
       attack: 60,
@@ -69,6 +72,7 @@ export function makeInitialRoster(): RosterUnit[] {
       id: 'unit_carthage_b',
       name: 'カルタゴ兵B',
       side: 'ally',
+      attackAttr: 'pierce',
       hp: 70,
       maxHp: 70,
       attack: 62,
@@ -89,6 +93,7 @@ export function makeInitialRoster(): RosterUnit[] {
       id: 'unit_carthage_c',
       name: 'カルタゴ兵C',
       side: 'ally',
+      attackAttr: 'strike',
       hp: 75,
       maxHp: 75,
       attack: 58,
@@ -109,6 +114,7 @@ export function makeInitialRoster(): RosterUnit[] {
       id: 'unit_carthage_d',
       name: 'カルタゴ兵D',
       side: 'ally',
+      attackAttr: 'fire',
       hp: 72,
       maxHp: 72,
       attack: 61,
@@ -221,6 +227,7 @@ export function generateMercenary(seed: number): RosterUnit {
     id: `merc_${seed}`,
     name: `傭兵・${name}`,
     side: 'ally',
+    attackAttr: ATTR_IDS[pick(0, ATTR_IDS.length - 1)],
     hp,
     maxHp: hp,
     attack: pick(50, 75),

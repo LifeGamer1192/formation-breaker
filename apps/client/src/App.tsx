@@ -39,6 +39,8 @@ function makeWorldFromSetup(gameState: GameState, battleDef: BattleDef): WorldSt
           flankMod: rosterUnit.flankMod,
           rearMod: rosterUnit.rearMod,
           range: rosterUnit.range,
+          attackAttr: rosterUnit.attackAttr,
+          armorDef: rosterUnit.armorDef,
         }
       }
     }
@@ -66,6 +68,8 @@ function makeWorldFromSetup(gameState: GameState, battleDef: BattleDef): WorldSt
           flankMod: rosterUnit.flankMod,
           rearMod: rosterUnit.rearMod,
           range: rosterUnit.range,
+          attackAttr: rosterUnit.attackAttr,
+          armorDef: rosterUnit.armorDef,
         }
       }
     }

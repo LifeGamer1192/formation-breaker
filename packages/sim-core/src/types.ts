@@ -1,6 +1,7 @@
 import type { LayerEffect } from './layers'
 import type { FormationType } from './formation'
 import type { Vec2, MovementType } from './geo'
+import type { AttrId } from './attribute'
 
 export type UnitId  = string
 export type SquadId = string
@@ -25,6 +26,10 @@ export interface UnitState {
   rearMod:      number
   // PoC#3: 射程（仕様書L58: 100で戦場端〜端）
   range:        number
+  // α2: 属性。通常攻撃の属性（省略時 slash）。
+  attackAttr?:  AttrId
+  // α2: 属性別防御加算（防具由来、装備本実装は α3）。例 { thunder: 100 }
+  armorDef?:    Partial<Record<AttrId, number>>
 }
 
 export interface SquadState {

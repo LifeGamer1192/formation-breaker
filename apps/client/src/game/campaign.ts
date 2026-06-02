@@ -21,9 +21,15 @@ function makeEnemyUnit(id: string, name: string, overrides: Partial<RosterUnit> 
     range: 20,
     level: 1,
     exp: 0,
+    attackAttr: 'pierce', // ローマ兵は槍/弓 → 刺
     ...overrides,
   }
 }
+
+// 重装（物理に強く、火・雷に弱い）防御セット
+const HEAVY_ARMOR = { slash: 25, pierce: 25, strike: 25 } as const
+// 雷鎧（雷に強い）
+const THUNDER_ARMOR = { thunder: 40 } as const
 
 // ─── 戦場0: 初陣の平原────────────────────────────────────────────
 export const BATTLE_0: BattleDef = {
@@ -57,8 +63,8 @@ export const BATTLE_1: BattleDef = {
   reward: 50,
   enemies: {
     units: [
-      makeEnemyUnit('enemy_1_0', '敵兵士A', { hp: 75, maxHp: 75, attack: 62, defense: 56 }),
-      makeEnemyUnit('enemy_1_1', '敵兵士B', { hp: 73, maxHp: 73, attack: 60, defense: 55 }),
+      makeEnemyUnit('enemy_1_0', '重装ローマ兵A', { hp: 75, maxHp: 75, attack: 62, defense: 56, armorDef: { ...HEAVY_ARMOR } }),
+      makeEnemyUnit('enemy_1_1', '重装ローマ兵B', { hp: 73, maxHp: 73, attack: 60, defense: 55, armorDef: { ...HEAVY_ARMOR } }),
       makeEnemyUnit('enemy_1_2', '敵兵士C', { hp: 72, maxHp: 72, attack: 61, defense: 54 }),
       makeEnemyUnit('enemy_1_3', '敵兵士D', { hp: 74, maxHp: 74, attack: 59, defense: 56 }),
     ],
@@ -92,10 +98,10 @@ export const BATTLE_2: BattleDef = {
       makeEnemyUnit('enemy_2_1', '敵兵士B', { hp: 83, maxHp: 83, attack: 68, defense: 64 }),
       makeEnemyUnit('enemy_2_2', '敵兵士C', { hp: 80, maxHp: 80, attack: 65, defense: 62 }),
       makeEnemyUnit('enemy_2_3', '敵兵士D', { hp: 82, maxHp: 82, attack: 67, defense: 63 }),
-      makeEnemyUnit('enemy_2_4', '敵兵士E', { hp: 81, maxHp: 81, attack: 66, defense: 61 }),
-      makeEnemyUnit('enemy_2_5', '敵兵士F', { hp: 84, maxHp: 84, attack: 69, defense: 66 }),
-      makeEnemyUnit('enemy_2_6', '敵兵士G', { hp: 80, maxHp: 80, attack: 64, defense: 60 }),
-      makeEnemyUnit('enemy_2_7', '敵兵士H', { hp: 82, maxHp: 82, attack: 66, defense: 62 }),
+      makeEnemyUnit('enemy_2_4', '雷鎧ローマ兵E', { hp: 81, maxHp: 81, attack: 66, defense: 61, armorDef: { ...THUNDER_ARMOR } }),
+      makeEnemyUnit('enemy_2_5', '雷鎧ローマ兵F', { hp: 84, maxHp: 84, attack: 69, defense: 66, armorDef: { ...THUNDER_ARMOR } }),
+      makeEnemyUnit('enemy_2_6', '雷鎧ローマ兵G', { hp: 80, maxHp: 80, attack: 64, defense: 60, armorDef: { ...THUNDER_ARMOR } }),
+      makeEnemyUnit('enemy_2_7', '雷鎧ローマ兵H', { hp: 82, maxHp: 82, attack: 66, defense: 62, armorDef: { ...THUNDER_ARMOR } }),
     ],
     squads: [
       {

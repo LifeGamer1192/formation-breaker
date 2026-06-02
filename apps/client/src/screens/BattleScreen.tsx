@@ -3,7 +3,7 @@ import {
   mulberry32, tickCombat, tickMovement, getEffectiveStats,
   FORMATION_LABEL, FORMATION_DESC, DEMO_TERRAIN, dist,
   calcFacingZone, ZONE_LABEL, applyCommand,
-  buildUnitView, SQUAD_SPREAD, getEffectiveFormation,
+  buildUnitView, SQUAD_SPREAD, getEffectiveFormation, ATTRIBUTES,
 } from '@fb/sim-core'
 import type {
   WorldState, UnitState, SquadState, FormationType,
@@ -172,7 +172,12 @@ function UnitCard({ unit, squad, color, aliveCount }: { unit: UnitState; squad: 
   return (
     <div style={{ marginBottom: 10, opacity: unit.alive ? 1 : 0.35 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
-        <span>{unit.name}{unit.isLeader ? ' 👑' : ''}</span>
+        <span>
+          <span title={`攻撃属性: ${ATTRIBUTES[unit.attackAttr ?? 'slash'].label}`}>
+            {ATTRIBUTES[unit.attackAttr ?? 'slash'].icon}
+          </span>
+          {' '}{unit.name}{unit.isLeader ? ' 👑' : ''}
+        </span>
         <span style={{ color: '#aaa', fontSize: 10 }}>
           {unit.alive ? `${unit.hp.toLocaleString()}/${unit.maxHp.toLocaleString()}` : '離脱'}
         </span>
@@ -198,6 +203,12 @@ function UnitCard({ unit, squad, color, aliveCount }: { unit: UnitState; squad: 
               </span>
             )
           })}
+        </div>
+      )}
+      {unit.alive && unit.armorDef && Object.keys(unit.armorDef).length > 0 && (
+        <div style={{ fontSize: 9, color: '#7cf', marginTop: 1 }}>
+          🛡️ {Object.entries(unit.armorDef).map(([a, v]) =>
+            `${ATTRIBUTES[a as keyof typeof ATTRIBUTES].icon}+${v}`).join(' ')}
         </div>
       )}
     </div>

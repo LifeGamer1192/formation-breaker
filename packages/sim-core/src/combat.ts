@@ -4,6 +4,7 @@ import { dist } from './geo'
 import { getEffectiveStats } from './stats'
 import { calcFacingZone, ZONE_LABEL } from './facing'
 import { buildUnitView } from './view'
+import { ATTRIBUTES, armorDefFor } from './attribute'
 
 function findSquad(world: WorldState, unitId: string): SquadState {
   return world.squads.find(s => s.unitIds.includes(unitId))!
@@ -58,20 +59,26 @@ export function tickCombat(world: WorldState, rng: Prng): WorldState {
     const defSquad  = findSquad(world, target.id)
     const defEff    = getEffectiveStats(target, defSquad, aliveCount(defSquad, world.units))
 
+    // α2: 攻撃属性に対応する防御力を使う
+    // 属性別防御力 = 基礎/レイヤー防御(共通) + 攻撃属性に対応する防具防御(armorDef)
+    const atkAttr   = unit.attackAttr ?? 'slash'
+    const attrDef   = defEff.defense + armorDefFor(target.armorDef, atkAttr)
+
     // 向き判定（攻撃側の兵士座標 vs 守備側の兵士座標・守備兵士自身の向き）
     const zone      = calcFacingZone(attackerPos, targetPos, targetView.facing)
     const facingMod = zone === 'front' ? 0
                     : zone === 'flank' ? (target.flankMod ?? -30)
                     :                    (target.rearMod  ?? -50)
-    const adjDef    = Math.max(0, Math.round(defEff.defense * (1 + facingMod / 100)))
+    const adjDef    = Math.max(0, Math.round(attrDef * (1 + facingMod / 100)))
 
-    // ダメージ = max(1, 実効ATK - 向き補正後DEF)
+    // ダメージ = max(1, 実効ATK - 属性別・向き補正後DEF)
     const dmg   = Math.max(1, attEff.attack - adjDef)
     const newHp = Math.max(0, target.hp - dmg)
 
+    const icon    = ATTRIBUTES[atkAttr].icon
     const zoneStr = zone !== 'front' ? `[${ZONE_LABEL[zone]} DEF${adjDef}]` : `[DEF${adjDef}]`
     newLog.push(
-      `[T${world.tick + 1}] ${unit.name}(ATK${attEff.attack}) → ${target.name}${zoneStr}: ${dmg}dmg (${target.hp}→${newHp})`
+      `[T${world.tick + 1}] ${unit.name}(${icon}ATK${attEff.attack}) → ${target.name}${zoneStr}: ${dmg}dmg (${target.hp}→${newHp})`
     )
 
     units[target.id].hp    = newHp
