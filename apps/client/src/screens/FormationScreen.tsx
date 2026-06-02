@@ -13,13 +13,14 @@ export interface FormationScreenProps {
   tokens: number
   inventory: OwnedEquip[]
   onHire: () => void
+  onDelete: (unitId: string) => void
   onStart: (squads: SquadSetup[]) => void
   onSaveGhost: (squads: SquadSetup[]) => void
 }
 
 const FORMATIONS: FormationType[] = ['none', 'horizontal', 'column', 'square', 'arrowhead', 'circle', 'solo']
 
-export function FormationScreen({ roster, tokens, inventory, onHire, onStart, onSaveGhost }: FormationScreenProps) {
+export function FormationScreen({ roster, tokens, inventory, onHire, onDelete, onStart, onSaveGhost }: FormationScreenProps) {
   const [ghostSaved, setGhostSaved] = useState(false)
   const [squads, setSquads] = useState<SquadSetup[]>([
     { id: 'squad-1', name: '前衛', unitIds: [], formation: 'horizontal' },
@@ -160,13 +161,26 @@ export function FormationScreen({ roster, tokens, inventory, onHire, onStart, on
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                       <span>
-                        <b>{unit.name}</b>
+                        {unit.kind === 'unique'
+                          ? <span title="ユニーク（一体限り）" style={{ color: C.gold }}>★</span>
+                          : <span title="一般" style={{ color: C.sub }}>◇</span>}
+                        {' '}<b>{unit.name}</b>
                         {unit.isLeader && ' 👑'}
                       </span>
-                      <span style={{ color: C.sub }}>Lv.{unit.level}</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ color: C.sub }}>Lv.{unit.level}</span>
+                        {!unit.forced && (
+                          <button
+                            onClick={e => { e.stopPropagation(); onDelete(unit.id) }}
+                            title="兵士を削除"
+                            style={{ background: 'transparent', border: 'none', color: C.danger, cursor: 'pointer', fontSize: 12, padding: 0, lineHeight: 1 }}
+                          >🗑</button>
+                        )}
+                      </span>
                     </div>
                     <div style={{ fontSize: 9, color: '#999' }}>
                       HP {unit.maxHp} / ATK {unit.attack} / DEF {unit.defense}
+                      {unit.traitName && <span style={{ color: '#9c6', marginLeft: 4 }}>◆{unit.traitName}</span>}
                     </div>
                   </div>
                 )

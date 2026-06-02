@@ -5,6 +5,10 @@ import type { SquadEquip, OwnedEquip } from './equipment'
 export interface RosterUnit extends UnitState {
   level: number   // 1起点
   exp:   number   // 累積経験値
+  // α7: 兵士の質と来歴
+  kind:       'unique' | 'general'  // ユニーク（一体限り・固有）/ 一般（ランダム）
+  forced?:    boolean               // 強制加入（編成画面で削除不可）
+  traitName?: string                // ランダム特性の表示名
 }
 
 // ─── 隊編成（プレイヤーが編成画面で組む）───────────────────────
@@ -27,6 +31,7 @@ export interface BattleDef {
   allyStartX:   number    // 味方初期X座標
   enemyStartX:  number    // 敵初期X座標
   reward:       number    // 勝利時の基礎報酬トークン
+  recruitGenerals?: number // α7: 初回突入時に強制加入する一般兵（援軍）の数
 }
 
 // ─── ゲームステート（persistence 対象）──────────────────────────
@@ -36,6 +41,7 @@ export interface GameState {
   squads:      SquadSetup[]   // 現在の編成（最大5隊）
   tokens:      number         // 所持トークン（戦闘報酬で増え、傭兵購入で減る）
   inventory:   OwnedEquip[]   // α3: 軍所有の装備インベントリ
+  recruitedBattles: string[]  // α7: 強制加入を適用済みの戦場ID（再付与防止）
   log:         string[]       // キャンペーンログ
 }
 

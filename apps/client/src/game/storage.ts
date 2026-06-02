@@ -24,6 +24,7 @@ export function loadGame(): GameState | null {
       squads:      parsed.squads ?? [],
       tokens:      parsed.tokens ?? 0,
       inventory:   parsed.inventory ?? makeInitialInventory(),
+      recruitedBattles: parsed.recruitedBattles ?? [],
       log:         parsed.log ?? [],
     }
   } catch (e) {

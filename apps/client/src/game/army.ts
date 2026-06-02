@@ -11,6 +11,8 @@ export function makeInitialRoster(): RosterUnit[] {
     {
       id: 'unit_hannibal',
       name: 'ハンニバル',
+      kind: 'unique',
+      forced: true,
       side: 'ally',
       attackAttr: 'thunder',
       ultId: 'raikou',
@@ -34,6 +36,8 @@ export function makeInitialRoster(): RosterUnit[] {
     {
       id: 'unit_mago',
       name: 'マゴ・バルカ',
+      kind: 'unique',
+      forced: true,
       side: 'ally',
       attackAttr: 'slash',
       ultId: 'senjin',
@@ -56,6 +60,7 @@ export function makeInitialRoster(): RosterUnit[] {
     {
       id: 'unit_carthage_a',
       name: 'カルタゴ兵A',
+      kind: 'general',
       side: 'ally',
       attackAttr: 'slash',
       hp: 70,
@@ -78,6 +83,7 @@ export function makeInitialRoster(): RosterUnit[] {
     {
       id: 'unit_carthage_b',
       name: 'カルタゴ兵B',
+      kind: 'general',
       side: 'ally',
       attackAttr: 'pierce',
       hp: 70,
@@ -99,6 +105,7 @@ export function makeInitialRoster(): RosterUnit[] {
     {
       id: 'unit_carthage_c',
       name: 'カルタゴ兵C',
+      kind: 'general',
       side: 'ally',
       attackAttr: 'strike',
       hp: 75,
@@ -120,6 +127,7 @@ export function makeInitialRoster(): RosterUnit[] {
     {
       id: 'unit_carthage_d',
       name: 'カルタゴ兵D',
+      kind: 'general',
       side: 'ally',
       attackAttr: 'fire',
       hp: 72,
@@ -177,25 +185,29 @@ export function applyLevelUps(roster: RosterUnit[]): { roster: RosterUnit[]; lev
   return { roster: newRoster, leveledUpIds }
 }
 
-// ─── 戦闘参加時のXP付与（戦闘中に呼ぶ）────────────────────────────
-// 戦闘参加: +20, 敵撃破: +30 をベースに、リーダーボーナス(部下数*10%)を加算
-export function awardXp(roster: RosterUnit[], participantIds: string[], killCount: number): RosterUnit[] {
+// ─── 戦闘参加時のXP付与（仕様書 L273-276 準拠）────────────────────
+// 1戦闘でほぼ1-2レベルアップする量。リーダーは部下数で0-50%増、勝利(トドメ)で+50%。
+export function awardXp(roster: RosterUnit[], participantIds: string[], killCount: number, won: boolean): RosterUnit[] {
   return roster.map(u => {
     if (!participantIds.includes(u.id)) return u
-    let xp = u.exp + 20  // 参加ボーナス
-    if (killCount > 0) xp += 30  // 敵撃破ボーナス（全員で分配する簡略版）
-
-    // リーダーボーナス: 部下数 × 10%
+    let xp = 50 + killCount * 15  // 参加 + 撃破ボーナス
+    // リーダーボーナス: 部下数 × 10%（最大 +50%）
     if (u.isLeader) {
-      const subordinates = participantIds.filter(id => {
-        const participant = roster.find(r => r.id === id)
-        return participant && !participant.isLeader
+      const subs = participantIds.filter(id => {
+        const p = roster.find(r => r.id === id)
+        return p && !p.isLeader
       }).length
-      xp = Math.round(xp * (1 + subordinates * 0.1))
+      xp = Math.round(xp * (1 + Math.min(5, subs) * 0.1))
     }
-
-    return { ...u, exp: xp }
+    if (won) xp = Math.round(xp * 1.5) // トドメ（勝利）ボーナス +50%
+    return { ...u, exp: u.exp + xp }
   })
+}
+
+// 既存全兵士の平均レベル（四捨五入・最低1）。ランダム兵士の入隊レベルに使う。
+export function avgLevel(roster: RosterUnit[]): number {
+  if (roster.length === 0) return 1
+  return Math.max(1, Math.round(roster.reduce((s, u) => s + u.level, 0) / roster.length))
 }
 
 // ─── デバッグ用: 全兵士のステータスリセット─────────────────────────
@@ -211,6 +223,7 @@ export function makeInitialGameState(): GameState {
     squads: [],
     tokens: 0,
     inventory: makeInitialInventory(),
+    recruitedBattles: [],
     log: ['キャンペーン開始'],
   }
 }
@@ -224,35 +237,59 @@ export function calcBattleReward(reward: number, killCount: number): number {
   return reward + killCount * PER_KILL_BONUS
 }
 
-// 傭兵（ランダムな一般兵士）生成。Math.random 禁止のため mulberry32 を使用。
+// 一般兵生成（傭兵・援軍で共用）。Math.random 禁止のため mulberry32 を使用。
 const MERC_NAMES = ['ヌミディア騎兵', 'イベリア兵', 'ガリア傭兵', 'バレアレス投石兵', 'リビア槍兵']
 
-export function generateMercenary(seed: number): RosterUnit {
+// ランダム特性プール（仕様書 L154: 加入時にランダムで付与）
+const TRAITS: { name: string; effects: RosterUnit['skills'] }[] = [
+  { name: '不屈',     effects: SKILLS.unyielding.effects },
+  { name: '電光石火', effects: SKILLS.blitz.effects },
+  { name: '猛き血',   effects: SKILLS.warcry.effects },
+  { name: '無骨',     effects: [] },
+]
+
+function makeGeneral(seed: number, id: string, name: string, lvl: number): RosterUnit {
   const rng = mulberry32(seed)
   const pick = (min: number, max: number) => min + Math.floor(rng() * (max - min + 1))
-  const name = MERC_NAMES[pick(0, MERC_NAMES.length - 1)]
-  const hp = pick(60, 90)
+  const trait = TRAITS[pick(0, TRAITS.length - 1)]
+  const scale = Math.pow(1.05, Math.max(0, lvl - 1)) // 平均レベル相当に底上げ
+  const hp = Math.round(pick(60, 90) * scale)
   return {
-    id: `merc_${seed}`,
-    name: `傭兵・${name}`,
+    id,
+    name,
+    kind: 'general',
     side: 'ally',
     attackAttr: ATTR_IDS[pick(0, ATTR_IDS.length - 1)],
     hp,
     maxHp: hp,
-    attack: pick(50, 75),
-    defense: pick(45, 70),
+    attack: Math.round(pick(50, 75) * scale),
+    defense: Math.round(pick(45, 70) * scale),
     attackSpeed: Math.round((0.9 + rng() * 0.4) * 100) / 100,
     gaugeMax: 100,
     gauge: 0,
     alive: true,
     isLeader: false,
-    skills: [],
+    skills: trait.effects,
+    traitName: trait.name,
     flankMod: -30,
     rearMod: -50,
     range: 20,
-    level: 1,
+    level: Math.max(1, lvl),
     exp: 0,
   }
+}
+
+// 傭兵購入（ランダム一般・入隊レベル=平均）
+export function generateMercenary(seed: number, lvl = 1): RosterUnit {
+  const nameRng = mulberry32(seed * 13 + 1)
+  const name = `傭兵・${MERC_NAMES[Math.floor(nameRng() * MERC_NAMES.length)]}`
+  return makeGeneral(seed, `merc_${seed}`, name, lvl)
+}
+
+// 強制加入の援軍（一般・複数）
+export function makeRecruitGenerals(seed: number, count: number, lvl: number): RosterUnit[] {
+  return Array.from({ length: count }, (_, i) =>
+    makeGeneral(seed + i * 131 + 7, `recruit_${seed}_${i}`, `援軍カルタゴ兵${i + 1}`, lvl))
 }
 
 // ─── オート編成（roster を各隊に自動配分）─────────────────────────

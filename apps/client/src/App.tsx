@@ -7,7 +7,7 @@ import { ResultScreen } from './screens/ResultScreen'
 import { GhostScreen } from './screens/GhostScreen'
 import type { GameState, RosterUnit, SquadSetup, BattleDef, Ghost } from './game/types'
 import { getBattleDef } from './game/campaign'
-import { makeInitialGameState, resetAllUnits, generateMercenary, MERCENARY_COST } from './game/army'
+import { makeInitialGameState, resetAllUnits, generateMercenary, MERCENARY_COST, makeRecruitGenerals, avgLevel } from './game/army'
 import { makeGhostFromSquads, ghostToBattleDef, saveGhost } from './game/ghost'
 import { resolveEquip, gainEquipExp, equippedUids } from './game/equipment'
 import type { OwnedEquip, ResolvedEquip } from './game/equipment'
@@ -159,10 +159,37 @@ export default function App() {
   const handleSelectBattle = (idx: number) => {
     setMatchType('campaign')
     const battle = getBattleDef(idx)
-    const world0 = makeWorldFromSetup(gameState, battle)
-    setWorld(world0)
+    // α7: 初回突入時の強制加入（援軍・一般）。入隊レベル=平均、再付与は防止
+    let gs = gameState
+    if (battle.recruitGenerals && !gs.recruitedBattles.includes(battle.id)) {
+      const lvl = avgLevel(gs.roster)
+      const seed = idx * 9973 + gs.roster.length * 17 + 3
+      const recruits = makeRecruitGenerals(seed, battle.recruitGenerals, lvl)
+      gs = {
+        ...gs,
+        roster: [...gs.roster, ...recruits],
+        recruitedBattles: [...gs.recruitedBattles, battle.id],
+        log: [...gs.log, `援軍 ${recruits.length}名が加入（Lv${lvl}）`],
+      }
+      setGameState(gs)
+      saveGame(gs)
+    }
     setBattleDef(battle)
+    setWorld(makeWorldFromSetup(gs, battle))
     setScreen('formation')
+  }
+
+  // α7: 兵士の削除（強制加入・ユニークは不可）。ベンチ兵のみ対象
+  const handleDeleteUnit = (unitId: string) => {
+    const u = gameState.roster.find(r => r.id === unitId)
+    if (!u || u.forced) return
+    const gs: GameState = {
+      ...gameState,
+      roster: gameState.roster.filter(r => r.id !== unitId),
+      squads: gameState.squads.map(s => ({ ...s, unitIds: s.unitIds.filter(id => id !== unitId) })),
+    }
+    setGameState(gs)
+    saveGame(gs)
   }
 
   // ─── ゴーストPvP ─────────────────────────────────────────────
@@ -221,7 +248,7 @@ export default function App() {
     if (gameState.tokens < MERCENARY_COST) return
     // ロスター数とトークン残から擬似シードを生成（ID 衝突回避のため roster.length も加味）
     const seed = gameState.tokens * 7919 + gameState.roster.length * 31 + gameState.battleIndex
-    const merc = generateMercenary(seed)
+    const merc = generateMercenary(seed, avgLevel(gameState.roster))
     const newGameState: GameState = {
       ...gameState,
       roster: [...gameState.roster, merc],
@@ -263,6 +290,7 @@ export default function App() {
           tokens={gameState.tokens}
           inventory={gameState.inventory}
           onHire={handleHire}
+          onDelete={handleDeleteUnit}
           onStart={handleStartBattle}
           onSaveGhost={handleSaveGhost}
         />

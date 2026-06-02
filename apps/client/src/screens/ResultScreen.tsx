@@ -22,7 +22,7 @@ export function ResultScreen({ world, roster, reward, onContinue, onRetry }: Res
   const earnedTokens = won ? calcBattleReward(reward, killCount) : 0
 
   // XP 付与 → レベルアップ処理
-  const withXp = awardXp(roster, participantIds, killCount)
+  const withXp = awardXp(roster, participantIds, killCount, won)
   const { roster: withLevelUp, leveledUpIds } = applyLevelUps(withXp)
 
   const unitXps: Record<string, number> = {}

@@ -5,6 +5,7 @@ function makeEnemyUnit(id: string, name: string, overrides: Partial<RosterUnit> 
   return {
     id,
     name,
+    kind: 'general',
     side: 'enemy',
     hp: 70,
     maxHp: 70,
@@ -61,6 +62,7 @@ export const BATTLE_1: BattleDef = {
   allyStartX: 10,
   enemyStartX: 80,
   reward: 50,
+  recruitGenerals: 2,
   enemies: {
     units: [
       makeEnemyUnit('enemy_1_0', '重装ローマ兵A', { hp: 75, maxHp: 75, attack: 62, defense: 56, armorDef: { ...HEAVY_ARMOR } }),
@@ -92,6 +94,7 @@ export const BATTLE_2: BattleDef = {
   allyStartX: 10,
   enemyStartX: 80,
   reward: 80,
+  recruitGenerals: 2,
   enemies: {
     units: [
       makeEnemyUnit('enemy_2_0', '敵兵士A', { hp: 85, maxHp: 85, attack: 70, defense: 65 }),
