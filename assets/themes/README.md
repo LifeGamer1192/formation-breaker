@@ -1,15 +1,15 @@
 # グラフィックテーマ画像の設置マニフェスト
 
-2テーマ（`default` / `alt`）で**ファイル名・サイズを完全に統一**して配置する。
-テーマ切り替えはパス `/assets/themes/{themeId}/…` の差し替えのみで行うため、
-名前が1文字でも違うと片方のテーマで画像が出ない（→色塗りフォールバックになる）。
+配置ルート: `<リポジトリ直下>/assets/themes/<default|alt>/`
+（`assets/` は Vite の publicDir。中身は配信URLの直下にマップされる → 例 `assets/themes/default/face/hannibal.png` は `/themes/default/face/hannibal.png` で配信）
 
-配置ルート: `apps/client/public/assets/themes/<default|alt>/`
-（`public/` 配下はビルドに自動含有され、`/assets/...` のURLで配信される）
+2テーマ（`default` / `alt`）で**ファイル名・サイズを完全に統一**して配置する。
+テーマ切り替えはパス `/themes/{themeId}/…` の差し替えのみで行うため、
+名前が1文字でも違うと片方のテーマで画像が出ない（→色塗りフォールバックになる）。
 
 ## 必要ファイル一覧（default と alt の両方に同名で置く）
 
-### face/ … 顔グラ（PNG透過・128×128 px）
+### face/ … 顔グラ（PNG透過・128×128 px・6枚）
 | ファイル名 | 用途 |
 | --- | --- |
 | `hannibal.png` | ハンニバル（unit_hannibal） |
@@ -19,7 +19,7 @@
 | `spearman.png` | 敵一般兵 |
 | `enemy_commander.png` | 敵ユニーク武将 |
 
-### unit/ … 盤面ユニットスプライト（PNG透過・32×32 px）
+### unit/ … 盤面ユニットスプライト（PNG透過・32×32 px・6枚）
 `ally_infantry.png` / `ally_cavalry.png` / `ally_archer.png` / `ally_elite.png` / `enemy_infantry.png` / `enemy_cavalry.png`
 
 ### terrain/ … 地形マップチップ（PNG・60×60 px・10枚）

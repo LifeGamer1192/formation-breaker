@@ -4,6 +4,9 @@ import { VitePWA } from 'vite-plugin-pwa'
 import { fileURLToPath, URL } from 'node:url'
 
 export default defineConfig({
+  // α15: 静的アセット（テーマ画像・アイコン）はリポジトリ直下 assets/ に置く。
+  // 中身は配信URL直下にマップされる（例 assets/themes/default/... → /themes/default/...）。
+  publicDir: fileURLToPath(new URL('../../assets', import.meta.url)),
   plugins: [
     react(),
     VitePWA({
