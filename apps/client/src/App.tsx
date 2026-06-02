@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import type { WorldState } from '@fb/sim-core'
 import { MapScreen } from './screens/MapScreen'
 import { FormationScreen } from './screens/FormationScreen'
-import { BattleScreen } from './screens/BattleScreen'
+// α20: 戦闘画面（PixiJS依存）は初回戦闘まで遅延ロード（初回起動を軽量化）
+const BattleScreen = lazy(() => import('./screens/BattleScreen').then(m => ({ default: m.BattleScreen })))
 import { ResultScreen } from './screens/ResultScreen'
 import { GhostScreen } from './screens/GhostScreen'
 import { ImportScreen } from './screens/ImportScreen'
@@ -292,8 +293,10 @@ export default function App() {
         />
       )}
       {screen === 'battle' && world && battleDef && (
-        <BattleScreen battleDef={battleDef} initialWorld={world} onBattleEnd={handleBattleEnd}
-          ultItems={gameState.ultItems} onUseUltItem={handleUseUltItem} />
+        <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: C.sub }}>戦場を準備中…</div>}>
+          <BattleScreen battleDef={battleDef} initialWorld={world} onBattleEnd={handleBattleEnd}
+            ultItems={gameState.ultItems} onUseUltItem={handleUseUltItem} />
+        </Suspense>
       )}
       {screen === 'result' && world && (
         <ResultScreen

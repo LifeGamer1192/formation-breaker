@@ -33,6 +33,17 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,woff2}'],
         navigateFallback: '/index.html',
+        // α20: テーマ画像/アイコンはプリキャッシュせず、初回アクセス時にキャッシュ（オフライン対応・軽量）
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) => url.pathname.startsWith('/themes/') || /\/icon-\d+\.png$/.test(url.pathname),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'fb-images',
+              expiration: { maxEntries: 120, maxAgeSeconds: 60 * 60 * 24 * 30 },
+            },
+          },
+        ],
       },
     }),
   ],
