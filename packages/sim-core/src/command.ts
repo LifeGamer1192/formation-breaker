@@ -14,6 +14,7 @@ export type Command =
   | { tick: number; type: 'moveCancel'; squadId: string                           }
   | { tick: number; type: 'formation';  squadId: string; formation: FormationType }
   | { tick: number; type: 'ultimate';   squadId: string; targetPos?: Vec2         }
+  | { tick: number; type: 'technique';  unitId:  string; techId: string; enabled: boolean }
 
 /** 1コマンドを worldState に適用して新 worldState を返す (純粋関数) */
 export function applyCommand(world: WorldState, cmd: Command): WorldState {
@@ -32,6 +33,13 @@ export function applyCommand(world: WorldState, cmd: Command): WorldState {
         s.id === cmd.squadId ? { ...s, formation: cmd.formation } : s) }
     case 'ultimate':
       return executeUltimate(world, cmd.squadId, cmd.targetPos)
+    case 'technique': {
+      const u = world.units[cmd.unitId]
+      if (!u || !u.techniques) return world
+      return { ...world, units: { ...world.units, [cmd.unitId]: {
+        ...u, techniques: u.techniques.map(t => t.id === cmd.techId ? { ...t, enabled: cmd.enabled } : t),
+      } } }
+    }
   }
 }
 

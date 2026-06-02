@@ -165,7 +165,10 @@ function drawBattlefield(ctx: CanvasRenderingContext2D, world: WorldState, selec
   }
 }
 
-function UnitCard({ unit, squad, color, squadUnits, tick }: { unit: UnitState; squad: SquadState; color: string; squadUnits: UnitState[]; tick: number }) {
+function UnitCard({ unit, squad, color, squadUnits, tick, onToggleTech }: {
+  unit: UnitState; squad: SquadState; color: string; squadUnits: UnitState[]; tick: number
+  onToggleTech?: (unitId: string, techId: string, enabled: boolean) => void
+}) {
   const eff = getEffectiveStats(unit, squad, { aliveCount: squadUnits.length, squadUnits, tick })
   const marks = skillMarks(unit, tick)
   const hpPct = Math.max(0, Math.round(unit.hp / unit.maxHp * 100))
@@ -226,15 +229,42 @@ function UnitCard({ unit, squad, color, squadUnits, tick }: { unit: UnitState; s
           ))}
         </div>
       )}
+      {/* 技（α6）: オンオフ切替 + 固有ゲージ */}
+      {unit.alive && unit.techniques && unit.techniques.length > 0 && (
+        <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginTop: 2 }}>
+          {unit.techniques.map(t => {
+            const gPct = Math.min(100, Math.round((t.gauge / t.gaugeMax) * 100))
+            const clickable = !!onToggleTech
+            return (
+              <span
+                key={t.id}
+                title={`${t.name}（クリックでオンオフ）`}
+                onClick={clickable ? () => onToggleTech!(unit.id, t.id, !t.enabled) : undefined}
+                style={{
+                  fontSize: 9, padding: '0 4px', borderRadius: 3, position: 'relative', overflow: 'hidden',
+                  background: t.enabled ? '#332' : '#222',
+                  color: t.enabled ? '#fd6' : '#666',
+                  border: `1px solid ${t.enabled ? '#a83' : '#333'}`,
+                  cursor: clickable ? 'pointer' : 'default', opacity: t.enabled ? 1 : 0.55,
+                }}
+              >
+                <span style={{ position: 'absolute', left: 0, bottom: 0, height: 2, width: `${gPct}%`, background: t.enabled ? '#fd6' : '#555' }} />
+                {t.enabled ? '🎯' : '⭘'}{t.icon}{t.name}
+              </span>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
 
 const FORMATIONS: FormationType[] = ['none', 'horizontal', 'column', 'square', 'arrowhead', 'circle', 'solo']
 
-function SquadCard({ squad, units, color, selected, onSelect, onFormation, isReplay, tick }: {
+function SquadCard({ squad, units, color, selected, onSelect, onFormation, isReplay, tick, onToggleTech }: {
   squad: SquadState; units: WorldState['units']; color: string
   selected: boolean; onSelect: () => void; onFormation: (f: FormationType) => void; isReplay: boolean; tick: number
+  onToggleTech?: (unitId: string, techId: string, enabled: boolean) => void
 }) {
   const terrain = DEMO_TERRAIN
     [Math.min(5, Math.max(0, Math.floor(squad.pos.y / 10)))]
@@ -302,14 +332,15 @@ function SquadCard({ squad, units, color, selected, onSelect, onFormation, isRep
           </div>
         )
       })()}
-      {squad.unitIds.map(id => units[id] ? <UnitCard key={id} unit={units[id]} squad={squad} color={color} squadUnits={aliveUnits} tick={tick} /> : null)}
+      {squad.unitIds.map(id => units[id] ? <UnitCard key={id} unit={units[id]} squad={squad} color={color} squadUnits={aliveUnits} tick={tick} onToggleTech={onToggleTech} /> : null)}
     </div>
   )
 }
 
-function ArmyPanel({ title, side, squads, units, color, selected, onSelect, onFormation, isReplay, tick }: {
+function ArmyPanel({ title, side, squads, units, color, selected, onSelect, onFormation, isReplay, tick, onToggleTech }: {
   title: string; side: 'ally' | 'enemy'; squads: SquadState[]; units: WorldState['units']; color: string
   selected: string | null; onSelect: (id: string) => void; onFormation: (sqId: string, f: FormationType) => void; isReplay: boolean; tick: number
+  onToggleTech?: (unitId: string, techId: string, enabled: boolean) => void
 }) {
   const alive = squads.filter(s => s.side === side).flatMap(s => s.unitIds).filter(id => units[id]?.alive).length
   return (
@@ -320,7 +351,7 @@ function ArmyPanel({ title, side, squads, units, color, selected, onSelect, onFo
       {squads.filter(s => s.side === side).map(s => (
         <SquadCard key={s.id} squad={s} units={units} color={color}
           selected={selected === s.id} onSelect={() => onSelect(s.id)}
-          onFormation={f => onFormation(s.id, f)} isReplay={isReplay} tick={tick} />
+          onFormation={f => onFormation(s.id, f)} isReplay={isReplay} tick={tick} onToggleTech={onToggleTech} />
       ))}
     </div>
   )
@@ -420,6 +451,15 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd }: BattleScr
       if (idx >= 0 && cmdsRef.current[idx].type === 'formation') {
         cmdsRef.current[idx] = cmd
       }
+      return applyCommand(prev, cmd)
+    })
+  }
+
+  // 技のオンオフ切替（コマンド化＝リプレイ可）
+  const toggleTech = (unitId: string, techId: string, enabled: boolean) => {
+    setWorld(prev => {
+      const cmd: Command = { tick: prev.tick, type: 'technique', unitId, techId, enabled }
+      cmdsRef.current.push(cmd)
       return applyCommand(prev, cmd)
     })
   }
@@ -643,7 +683,8 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd }: BattleScr
       <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
         <ArmyPanel title="🏴 味方軍" side="ally"  squads={allySquads}  units={world.units} color="#4af"
           selected={selected} onSelect={id => setSelected(s => s === id ? null : id)}
-          onFormation={changeFormation} isReplay={isReplay} tick={world.tick} />
+          onFormation={changeFormation} isReplay={isReplay} tick={world.tick}
+          onToggleTech={mode === 'live' ? toggleTech : undefined} />
         <ArmyPanel title="⚔️ 敵軍"   side="enemy" squads={enemySquads} units={world.units} color="#f64"
           selected={selected} onSelect={id => setSelected(s => s === id ? null : id)}
           onFormation={changeFormation} isReplay={isReplay} tick={world.tick} />

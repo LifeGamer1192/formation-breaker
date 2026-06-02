@@ -3,6 +3,27 @@ import type { FormationType } from './formation'
 import type { Vec2, MovementType } from './geo'
 import type { AttrId } from './attribute'
 
+// ─── 技ランタイム（[技レイヤー]・α6）──────────────────────────────
+// 兵士ごとに0-10個。固有ゲージを持ち、有効かつ満タンで優先順位順に自動発動。
+export interface TechniqueRuntime {
+  id:        string
+  name:      string
+  icon:      string
+  kind:      'selfBuff' | 'bonusAttack'
+  gauge:     number
+  gaugeMax:  number
+  speed:     number    // ゲージ充填速度/tick
+  priority:  number     // 大きいほど優先
+  enabled:   boolean    // 戦術画面でオンオフ
+  // bonusAttack
+  attr?:     AttrId
+  power?:    number
+  range?:    number
+  // selfBuff
+  durationTicks?: number
+  buffs?:    { target: StatId; op: EffectOp; value: number }[]
+}
+
 // ─── 必殺技ランタイム（[必殺技レイヤー]・α5）──────────────────────
 // リーダーの必殺技が隊にセットされる。数値解決済みのものを隊に持たせ、
 // sim-core はカタログを知らずに汎用処理する（カタログは client 側）。
@@ -50,6 +71,8 @@ export interface UnitState {
   armorDef?:    Partial<Record<AttrId, number>>
   // α5: この兵士が持つ必殺技ID（リーダー時に隊へセットされる）
   ultId?:       string
+  // α6: 兵士の技（固有ゲージ・自動発動）
+  techniques?:  TechniqueRuntime[]
 }
 
 export interface SquadState {

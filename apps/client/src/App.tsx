@@ -67,6 +67,7 @@ function makeWorldFromSetup(gameState: GameState, battleDef: BattleDef): WorldSt
           range: rosterUnit.range + re.rangeAdd,
           attackAttr: re.attackAttr ?? rosterUnit.attackAttr,
           armorDef: mergeArmor(rosterUnit.armorDef, re.armorDef),
+          techniques: rosterUnit.techniques?.map(t => ({ ...t, gauge: 0 })),
         }
       }
     }

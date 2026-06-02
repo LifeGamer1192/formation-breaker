@@ -91,7 +91,60 @@ export function tickCombat(world: WorldState, rng: Prng): WorldState {
     units[unit.id].gauge  -= unit.gaugeMax
   }
 
-  // ③ 勝敗判定
+  // ③ 技（technique）: 固有ゲージ充填 → 有効かつ満タンを優先順位順に1つ自動発動
+  for (const unit of Object.values(units)) {
+    if (!unit.alive || !unit.techniques || unit.techniques.length === 0) continue
+    // 充填
+    let techs = unit.techniques.map(t => ({ ...t, gauge: Math.min(t.gaugeMax, t.gauge + t.speed) }))
+    // 有効かつ満タンを優先順位降順で。1tickに1つ、「実際に発動できた」技だけ消費する。
+    const ready = techs.filter(t => t.enabled && t.gauge >= t.gaugeMax).sort((a, b) => b.priority - a.priority)
+    for (const t of ready) {
+      let fired = false
+      if (t.kind === 'selfBuff') {
+        const until = world.tick + (t.durationTicks ?? 100)
+        const fx: LayerEffect[] = (t.buffs ?? []).map(b => ({
+          layer: 'technique', target: b.target, op: b.op, value: b.value,
+          priority: 0, source: t.name, scope: 'self', untilTick: until,
+        }))
+        units[unit.id].skills = [...units[unit.id].skills, ...fx]
+        newLog.push(`[T${world.tick + 1}] 🎯${unit.name}: ${t.icon}${t.name}`)
+        fired = true
+      } else if (t.kind === 'bonusAttack') {
+        const myPos = view.get(unit.id)?.pos
+        // 射程内の最寄り敵（決定論: 最短距離、同距離は走査順）
+        let best: { id: string; d: number } | null = null
+        if (myPos) {
+          for (const u of Object.values(units)) {
+            if (!u.alive || u.side === unit.side) continue
+            const tv = view.get(u.id)
+            if (!tv) continue
+            const d = dist(myPos, tv.pos)
+            if (d <= (t.range ?? 0) && (!best || d < best.d)) best = { id: u.id, d }
+          }
+        }
+        if (best) {
+          const tgt = units[best.id]
+          const sq = world.squads.find(s => s.unitIds.includes(tgt.id))!
+          const sa = squadAlive(sq, world.units)
+          const defEff = getEffectiveStats(tgt, sq, { aliveCount: sa.length, squadUnits: sa, tick: world.tick })
+          const attr = t.attr ?? 'slash'
+          const attrDef = defEff.defense + armorDefFor(tgt.armorDef, attr)
+          const dmg = Math.max(1, (t.power ?? 0) - attrDef)
+          units[best.id].hp = Math.max(0, tgt.hp - dmg)
+          units[best.id].alive = units[best.id].hp > 0
+          newLog.push(`[T${world.tick + 1}] 🎯${unit.name}: ${t.icon}${t.name} ${ATTRIBUTES[attr].icon}→${tgt.name} ${dmg}dmg`)
+          fired = true
+        }
+      }
+      if (fired) {
+        techs = techs.map(x => x.id === t.id ? { ...x, gauge: x.gauge - x.gaugeMax } : x)
+        break // 1tickに1つ
+      }
+    }
+    units[unit.id].techniques = techs
+  }
+
+  // ④ 勝敗判定
   const allyAlive  = Object.values(units).some(u => u.alive && u.side === 'ally')
   const enemyAlive = Object.values(units).some(u => u.alive && u.side === 'enemy')
   const finished   = !allyAlive || !enemyAlive

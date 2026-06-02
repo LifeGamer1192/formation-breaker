@@ -3,6 +3,7 @@ import type { FormationType } from '@fb/sim-core'
 import type { RosterUnit, GameState, SquadSetup } from './types'
 import { makeInitialInventory } from './equipment'
 import { SKILLS } from './skills'
+import { makeTechniques } from './technique'
 
 // ─── 初期兵士ロスター（カルタゴ陣営）──────────────────────────────
 export function makeInitialRoster(): RosterUnit[] {
@@ -23,6 +24,7 @@ export function makeInitialRoster(): RosterUnit[] {
       alive: true,
       isLeader: true,
       skills: SKILLS.rally.effects,
+      techniques: makeTechniques(['warStance']),
       flankMod: -30,
       rearMod: -50,
       range: 20,
@@ -66,6 +68,7 @@ export function makeInitialRoster(): RosterUnit[] {
       alive: true,
       isLeader: false,
       skills: SKILLS.warcry.effects,
+      techniques: makeTechniques(['throwBlade']),
       flankMod: -30,
       rearMod: -50,
       range: 20,
@@ -129,6 +132,7 @@ export function makeInitialRoster(): RosterUnit[] {
       alive: true,
       isLeader: false,
       skills: [],
+      techniques: makeTechniques(['fireball']),
       flankMod: -30,
       rearMod: -50,
       range: 20,
