@@ -3,7 +3,7 @@ import {
   mulberry32, tickCombat, tickMovement, getEffectiveStats,
   FORMATION_LABEL, FORMATION_DESC, DEMO_TERRAIN, dist,
   calcFacingZone, ZONE_LABEL, applyCommand,
-  buildUnitView, SQUAD_SPREAD, getEffectiveFormation, ATTRIBUTES,
+  buildUnitView, getEffectiveFormation, ATTRIBUTES,
 } from '@fb/sim-core'
 import type {
   WorldState, UnitState, SquadState, FormationType,
@@ -11,13 +11,13 @@ import type {
 } from '@fb/sim-core'
 import type { BattleDef } from '../game/types'
 import { skillMarks } from '../game/skills'
+import { PixiBattlefield } from './pixiBattlefield'
 
 interface DmgFloat { id: string; x: number; y: number; dmg: number; age: number; side: 'ally'|'enemy' }
 
 const SCALE   = 6
 const CW      = 600
 const CH      = 360
-const TILE_PX = 60
 const UNIT_R  = 9
 const SQUAD_R = 22
 const DEPLOY_MAX_X = 40  // 配置ゾーン右端（ゲーム単位・α8）
@@ -30,173 +30,7 @@ const TERRAIN_LABEL: Record<TerrainType, string> = {
   plain: '平地', forest: '森', mountain: '山', desert: '砂漠', swamp: '沼',
   water: '池', river: '川', highmount: '高山', moat: '堀', wall: '塀',
 }
-// 移動不可地形（凡例・描画用）
-const IMPASSABLE_SET = new Set<TerrainType>(['water', 'river', 'highmount', 'moat', 'wall'])
-const gx = (x: number) => x * SCALE
-const gy = (y: number) => y * SCALE
 
-function drawBattlefield(ctx: CanvasRenderingContext2D, world: WorldState, selectedId: string | null, isReplay: boolean, damageFloats: DmgFloat[], isDeploy = false) {
-  ctx.clearRect(0, 0, CW, CH)
-
-  const grid = world.terrain ?? DEMO_TERRAIN
-  grid.forEach((row, ri) => row.forEach((terrain, ci) => {
-    const x = ci * TILE_PX, y = ri * TILE_PX
-    ctx.fillStyle = TERRAIN_COLOR[terrain]
-    ctx.fillRect(x, y, TILE_PX, TILE_PX)
-    ctx.strokeStyle = '#00000018'; ctx.lineWidth = 1
-    ctx.strokeRect(x, y, TILE_PX, TILE_PX)
-    // 移動不可地形は斜線ハッチで明示（α8）
-    if (IMPASSABLE_SET.has(terrain)) {
-      ctx.save()
-      ctx.strokeStyle = '#ffffff33'; ctx.lineWidth = 2
-      for (let o = -TILE_PX; o < TILE_PX; o += 10) {
-        ctx.beginPath(); ctx.moveTo(x + o, y); ctx.lineTo(x + o + TILE_PX, y + TILE_PX); ctx.stroke()
-      }
-      ctx.restore()
-    }
-  }))
-
-  // 配置フェーズ: 配置可能ゾーン（左側）を明示
-  if (isDeploy) {
-    ctx.save()
-    ctx.fillStyle = '#48aaff18'
-    ctx.fillRect(0, 0, DEPLOY_MAX_X * SCALE, CH)
-    ctx.strokeStyle = '#48aaff88'; ctx.lineWidth = 2; ctx.setLineDash([6, 4])
-    ctx.strokeRect(2, 2, DEPLOY_MAX_X * SCALE - 4, CH - 4)
-    ctx.fillStyle = '#9cf'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'left'
-    ctx.fillText('配置ゾーン（隊を選択→クリックで配置）', 6, 14)
-    ctx.restore()
-  }
-
-  const view = buildUnitView(world)
-
-  for (const squad of world.squads) {
-    const aliveIds = squad.unitIds.filter(id => world.units[id]?.alive)
-    if (aliveIds.length === 0) continue
-
-    const px = gx(squad.pos.x), py = gy(squad.pos.y)
-    const isAlly    = squad.side === 'ally'
-    const isFront   = squad.name === '前衛'
-    const baseColor = isAlly ? (isFront ? '#48aaff' : '#88ccff') : (isFront ? '#ff6644' : '#ff9977')
-    const isSelected = squad.id === selectedId
-
-    if (squad.moveQueue.length > 0) {
-      ctx.save(); ctx.strokeStyle = baseColor + '88'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4])
-      ctx.beginPath(); ctx.moveTo(px, py)
-      squad.moveQueue.forEach(wp => ctx.lineTo(gx(wp.x), gy(wp.y))); ctx.stroke()
-      squad.moveQueue.forEach(wp => {
-        const wx = gx(wp.x), wy = gy(wp.y); ctx.lineWidth = 2
-        ctx.beginPath(); ctx.moveTo(wx - 5, wy - 5); ctx.lineTo(wx + 5, wy + 5); ctx.stroke()
-        ctx.beginPath(); ctx.moveTo(wx + 5, wy - 5); ctx.lineTo(wx - 5, wy + 5); ctx.stroke()
-      }); ctx.restore()
-    }
-
-    ctx.save(); ctx.globalAlpha = isSelected ? 0.25 : 0.12
-    const ZONE_R = SQUAD_SPREAD * SCALE + 24
-    const arc = (a1: number, a2: number, c: string) => {
-      ctx.fillStyle = c; ctx.beginPath(); ctx.moveTo(px, py)
-      ctx.arc(px, py, ZONE_R, squad.facing + a1, squad.facing + a2); ctx.closePath(); ctx.fill()
-    }
-    arc(-Math.PI / 3,       Math.PI / 3,       '#44ff44')
-    arc( Math.PI / 3,       2 * Math.PI / 3,   '#ffff44')
-    arc(-2 * Math.PI / 3,  -Math.PI / 3,       '#ffff44')
-    arc( 2 * Math.PI / 3,   Math.PI,           '#ff4444')
-    arc(-Math.PI,          -2 * Math.PI / 3,   '#ff4444')
-    ctx.restore()
-
-    ctx.save()
-    ctx.strokeStyle = baseColor + (isSelected ? 'ee' : '55'); ctx.lineWidth = 1.5
-    ctx.beginPath(); ctx.moveTo(px - 5, py); ctx.lineTo(px + 5, py)
-    ctx.moveTo(px, py - 5); ctx.lineTo(px, py + 5); ctx.stroke()
-    ctx.restore()
-
-    aliveIds.forEach(unitId => {
-      const unit   = world.units[unitId]
-      const uv     = view.get(unitId)
-      if (!uv) return
-      const ux     = gx(uv.pos.x), uy = gy(uv.pos.y)
-      const facing = uv.facing
-      const hpPct  = Math.max(0, unit.hp / unit.maxHp)
-
-      ctx.save()
-      const noseLen = UNIT_R + 7, baseW = 0.55
-      const nx = ux + Math.cos(facing) * noseLen
-      const ny = uy + Math.sin(facing) * noseLen
-      ctx.beginPath()
-      ctx.moveTo(nx, ny)
-      ctx.lineTo(ux + Math.cos(facing + Math.PI / 2) * UNIT_R * baseW,
-                 uy + Math.sin(facing + Math.PI / 2) * UNIT_R * baseW)
-      ctx.lineTo(ux + Math.cos(facing - Math.PI / 2) * UNIT_R * baseW,
-                 uy + Math.sin(facing - Math.PI / 2) * UNIT_R * baseW)
-      ctx.closePath()
-      ctx.fillStyle = '#ffffffdd'
-      ctx.fill()
-      ctx.restore()
-
-      ctx.save()
-      ctx.strokeStyle = '#ff3333aa'; ctx.lineWidth = 2
-      const back = facing + Math.PI
-      ctx.beginPath()
-      ctx.moveTo(ux + Math.cos(back) * (UNIT_R - 1) + Math.cos(back + Math.PI / 2) * UNIT_R * 0.5,
-                 uy + Math.sin(back) * (UNIT_R - 1) + Math.sin(back + Math.PI / 2) * UNIT_R * 0.5)
-      ctx.lineTo(ux + Math.cos(back) * (UNIT_R - 1) + Math.cos(back - Math.PI / 2) * UNIT_R * 0.5,
-                 uy + Math.sin(back) * (UNIT_R - 1) + Math.sin(back - Math.PI / 2) * UNIT_R * 0.5)
-      ctx.stroke()
-      ctx.restore()
-
-      if (isSelected) {
-        ctx.beginPath(); ctx.arc(ux, uy, UNIT_R + 3, 0, 2 * Math.PI)
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke()
-      }
-
-      ctx.beginPath(); ctx.arc(ux, uy, UNIT_R, 0, 2 * Math.PI)
-      ctx.fillStyle   = baseColor + Math.round(100 + hpPct * 155).toString(16).padStart(2, '0')
-      ctx.strokeStyle = baseColor; ctx.lineWidth = 1.5
-      ctx.fill(); ctx.stroke()
-
-      if (unit.isLeader) {
-        ctx.beginPath(); ctx.arc(ux, uy - UNIT_R - 3, 3, 0, 2 * Math.PI)
-        ctx.fillStyle = '#ffdd00'; ctx.fill()
-      }
-      // 大将マーカー（赤リング・α8）
-      if (unit.isCommander) {
-        ctx.beginPath(); ctx.arc(ux, uy, UNIT_R + 5, 0, 2 * Math.PI)
-        ctx.strokeStyle = '#ff3344'; ctx.lineWidth = 2; ctx.stroke()
-      }
-
-      const barW = 14, barH = 2, barX = ux - barW / 2, barY = uy + UNIT_R + 3
-      ctx.fillStyle = '#333'; ctx.fillRect(barX, barY, barW, barH)
-      ctx.fillStyle = hpPct > 0.5 ? '#4d4' : hpPct > 0.25 ? '#fa0' : '#f44'
-      ctx.fillRect(barX, barY, barW * hpPct, barH)
-    })
-
-    if (isSelected) {
-      ctx.fillStyle = baseColor; ctx.font = 'bold 9px sans-serif'
-      ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'
-      ctx.fillText(`${isAlly ? '味' : '敵'}${squad.name}`, px, py - 4)
-    }
-  }
-
-  // ダメージフロート描画
-  damageFloats.forEach(f => {
-    const alpha = Math.max(0, 1 - f.age / 20)
-    const yOff = f.age * 0.4
-    ctx.save()
-    ctx.globalAlpha = alpha
-    ctx.fillStyle = f.side === 'ally' ? '#ffff55' : '#ff5555'
-    ctx.font = 'bold 12px sans-serif'
-    ctx.textAlign = 'center'
-    ctx.fillText(`-${f.dmg}`, gx(f.x) + 4, gy(f.y) - yOff)
-    ctx.restore()
-  })
-
-  if (isReplay) {
-    ctx.fillStyle = '#ff880044'; ctx.fillRect(0, 0, CW, 22)
-    ctx.fillStyle = '#ffaa00'; ctx.font = 'bold 12px sans-serif'
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText('⏪ REPLAY', CW / 2, 11)
-  }
-}
 
 function UnitCard({ unit, squad, color, squadUnits, tick, onToggleTech }: {
   unit: UnitState; squad: SquadState; color: string; squadUnits: UnitState[]; tick: number
@@ -412,7 +246,9 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd }: BattleScr
   const [mode,     setMode]     = useState<'deploy' | 'live' | 'replaying' | 'replay-done'>('deploy')
   const [matchMsg, setMatchMsg] = useState('')
   const [damageFloats, setDamageFloats] = useState<DmgFloat[]>([])
-  const canvasRef    = useRef<HTMLCanvasElement>(null)
+  const [pixiReady, setPixiReady] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const pixiRef      = useRef<PixiBattlefield | null>(null)
   const rngRef       = useRef(mulberry32(SEED))
   const replayRngRef = useRef(mulberry32(SEED))
   const replayTickRef= useRef(0)
@@ -422,10 +258,32 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd }: BattleScr
   const prevWorldRef = useRef<WorldState>(initialWorld)
   const battleInitRef= useRef<WorldState>(initialWorld) // 配置確定後の開戦時の初期状態（リプレイ基準）
 
+  // PixiJS アプリの初期化（マウント時に一度）
   useEffect(() => {
-    const ctx = canvasRef.current?.getContext('2d')
-    if (ctx) drawBattlefield(ctx, world, (mode === 'live' || mode === 'deploy') ? selected : null, mode === 'replaying', damageFloats, mode === 'deploy')
-  }, [world, selected, mode, damageFloats])
+    let disposed = false
+    PixiBattlefield.create().then(pb => {
+      if (disposed) { pb.destroy(); return }
+      pb.canvas.style.width = '100%'
+      pb.canvas.style.display = 'block'
+      pb.canvas.style.borderRadius = '8px'
+      containerRef.current?.appendChild(pb.canvas)
+      pixiRef.current = pb
+      setPixiReady(true)
+    })
+    return () => { disposed = true; pixiRef.current?.destroy(); pixiRef.current = null }
+  }, [])
+
+  // 状態変化のたびに Pixi で再描画
+  useEffect(() => {
+    if (!pixiReady || !pixiRef.current) return
+    pixiRef.current.render({
+      world,
+      selectedId: (mode === 'live' || mode === 'deploy') ? selected : null,
+      isReplay: mode === 'replaying',
+      isDeploy: mode === 'deploy',
+      damageFloats,
+    })
+  }, [pixiReady, world, selected, mode, damageFloats])
 
   // ダメージフロート検出・更新
   useEffect(() => {
@@ -573,9 +431,10 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd }: BattleScr
     setMode('replaying')
   }
 
-  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleCanvasClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (mode !== 'live' && mode !== 'deploy') return
-    const rect = canvasRef.current!.getBoundingClientRect()
+    if (!containerRef.current) return
+    const rect = containerRef.current.getBoundingClientRect()
     const clickGx: Vec2 = {
       x: (e.clientX - rect.left) * (CW / rect.width)  / SCALE,
       y: (e.clientY - rect.top)  * (CH / rect.height) / SCALE,
@@ -730,8 +589,8 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd }: BattleScr
       )}
 
       <div style={{ position: 'relative', marginBottom: 8 }}>
-        <canvas ref={canvasRef} width={CW} height={CH} onClick={handleCanvasClick}
-          style={{ width: '100%', borderRadius: 8, cursor: isReplay ? 'default' : selected ? 'crosshair' : 'pointer', display: 'block' }} />
+        <div ref={containerRef} onClick={handleCanvasClick}
+          style={{ width: '100%', aspectRatio: `${CW} / ${CH}`, borderRadius: 8, background: '#0a0a14', cursor: isReplay ? 'default' : selected ? 'crosshair' : 'pointer' }} />
         <div style={{ position: 'absolute', top: 5, right: 8, fontSize: 9, color: '#ffffff70', textAlign: 'right', lineHeight: 1.5 }}>
           隊の向き: 🟢正面 🟡側面 🔴背面<br />兵の向き: ▲ 正面 / <span style={{ color: '#f77' }}>━ 背面（弱点）</span>
         </div>
