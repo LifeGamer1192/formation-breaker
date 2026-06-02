@@ -23,6 +23,8 @@ function unitTooltip(u: RosterUnit): string {
 import { MERCENARY_COST, autoArrange } from '../game/army'
 import { EQUIP_DEFS, SLOTS, SLOT_LABEL } from '../game/equipment'
 import type { OwnedEquip, EquipSlot } from '../game/equipment'
+import { ITEM_DEFS, MAX_ITEMS_PER_SQUAD } from '../game/item'
+import type { OwnedItem } from '../game/item'
 import { C } from '../ui/theme'
 import { Button } from '../ui/Button'
 
@@ -31,6 +33,7 @@ export interface FormationScreenProps {
   gold: number
   potions: number
   inventory: OwnedEquip[]
+  items: OwnedItem[]
   initialSquads?: SquadSetup[]
   onHire: () => void
   onUsePotion: (unitId: string) => void
@@ -47,7 +50,7 @@ const DEFAULT_SQUADS: SquadSetup[] = [
   { id: 'squad-3', name: '後衛', unitIds: [], formation: 'square' },
 ]
 
-export function FormationScreen({ roster, gold, potions, inventory, initialSquads, onHire, onUsePotion, onDelete, onStart, onSaveGhost }: FormationScreenProps) {
+export function FormationScreen({ roster, gold, potions, inventory, items, initialSquads, onHire, onUsePotion, onDelete, onStart, onSaveGhost }: FormationScreenProps) {
   const [ghostSaved, setGhostSaved] = useState(false)
   // 前回の編成を引き継ぐ（存在しない兵士IDは除去してサニタイズ）
   const [squads, setSquads] = useState<SquadSetup[]>(() => {
@@ -64,6 +67,17 @@ export function FormationScreen({ roster, gold, potions, inventory, initialSquad
       if (uid === '') delete equip[slot]
       else equip[slot] = uid
       return { ...s, equip }
+    }))
+  }
+
+  // 装備アイテムの割当変更（隊ごと最大2・他隊使用中 uid は選べない）
+  const setItemSlot = (squadId: string, idx: number, uid: string) => {
+    setSquads(prev => prev.map(s => {
+      if (s.id !== squadId) return s
+      const arr = [...(s.itemUids ?? [])]
+      if (uid === '') arr.splice(idx, 1)
+      else arr[idx] = uid
+      return { ...s, itemUids: arr.filter(Boolean).slice(0, MAX_ITEMS_PER_SQUAD) }
     }))
   }
 
@@ -331,6 +345,35 @@ export function FormationScreen({ roster, gold, potions, inventory, initialSquad
                           {opts.map(o => {
                             const d = EQUIP_DEFS[o.defId]
                             return <option key={o.uid} value={o.uid}>{d.icon}{d.name} Lv{o.level}</option>
+                          })}
+                        </select>
+                      )
+                    })}
+                  </div>
+
+                  {/* 装備アイテム（隊単位・最大2・α12） */}
+                  <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                    {Array.from({ length: MAX_ITEMS_PER_SQUAD }).map((_, idx) => {
+                      const selUid = squad.itemUids?.[idx] ?? ''
+                      // 全隊で使用中の uid は除外（現在の選択だけは残す）＝1アイテム1隊
+                      const usedAll = new Set(squads.flatMap(s => s.itemUids ?? []))
+                      const opts = items.filter(o => !usedAll.has(o.uid) || o.uid === selUid)
+                      return (
+                        <select
+                          key={idx}
+                          value={selUid}
+                          onChange={e => setItemSlot(squad.id, idx, e.target.value)}
+                          title={`装備アイテム${idx + 1}`}
+                          style={{
+                            background: selUid ? '#2a1a30' : C.card, color: selUid ? '#d9f' : C.sub,
+                            border: '1px solid #333', borderRadius: 4, padding: '1px 3px', fontSize: 9,
+                            cursor: 'pointer', maxWidth: 110,
+                          }}
+                        >
+                          <option value="">アイテム{idx + 1}：なし</option>
+                          {opts.map(o => {
+                            const d = ITEM_DEFS[o.defId]
+                            return <option key={o.uid} value={o.uid} title={d.desc}>{d.icon}{d.name}</option>
                           })}
                         </select>
                       )

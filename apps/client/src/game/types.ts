@@ -1,5 +1,6 @@
 import type { UnitState, FormationType } from '@fb/sim-core'
 import type { SquadEquip, OwnedEquip } from './equipment'
+import type { OwnedItem } from './item'
 
 // ─── 兵士（所持ロスター用）─────────────────────────────────────────
 export interface RosterUnit extends UnitState {
@@ -18,6 +19,7 @@ export interface SquadSetup {
   unitIds:   string[]              // RosterUnit.id[] （リーダー = [0]）
   formation: FormationType
   equip?:    SquadEquip            // α3: 隊の装備ロードアウト（スロット→所持装備uid）
+  itemUids?: string[]             // α12: 隊の装備アイテム（最大2・OwnedItem.uid）
 }
 
 // ─── バトル定義（各キャンペーン戦場のデータ）─────────────────
@@ -42,6 +44,7 @@ export interface GameState {
   tokens:      number         // メタ通貨（ノードクリアで蓄積。周回をまたいで残す想定）
   potions:     number         // α12: 回復薬（編成画面で兵士を回復）
   inventory:   OwnedEquip[]   // α3: 軍所有の装備インベントリ
+  items:       OwnedItem[]    // α12: 軍所有の装備アイテム
   recruitedBattles: string[]  // α7: 強制加入を適用済みの戦場ID（再付与防止）
   // α8: マップ分岐（後戻り不可）
   clearedNodes: string[]      // クリア済みノードID

@@ -2,6 +2,7 @@ import { mulberry32, ATTR_IDS } from '@fb/sim-core'
 import type { FormationType } from '@fb/sim-core'
 import type { RosterUnit, GameState, SquadSetup } from './types'
 import { makeInitialInventory } from './equipment'
+import { makeInitialItems } from './item'
 import { SKILLS } from './skills'
 import { makeTechniques } from './technique'
 import { START_NODE } from './campaign'
@@ -225,6 +226,7 @@ export function makeInitialGameState(): GameState {
     tokens: 0,
     potions: 3,
     inventory: makeInitialInventory(),
+    items: makeInitialItems(),
     recruitedBattles: [],
     clearedNodes: [],
     frontier: [START_NODE],

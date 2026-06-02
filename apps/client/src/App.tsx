@@ -15,6 +15,8 @@ import { makeInitialGameState, resetAllUnits, generateMercenary, MERCENARY_COST,
 import { makeGhostFromSquads, ghostToBattleDef, saveGhost } from './game/ghost'
 import { resolveEquip, gainEquipExp, equippedUids } from './game/equipment'
 import type { OwnedEquip, ResolvedEquip } from './game/equipment'
+import { resolveItems } from './game/item'
+import type { OwnedItem, ResolvedItems } from './game/item'
 import { resolveUltimate } from './game/ultimate'
 import { saveGame, normalizeGameState } from './game/storage'
 import { isCloudEnabled, ensureAnonAuth, saveCloud, loadCloud } from './game/supabase'
@@ -36,20 +38,34 @@ function equipEffects(re: ResolvedEquip): LayerEffect[] {
   return fx
 }
 
+// 装備アイテム効果（equipmentItem レイヤー＝装備とは別レイヤーで加算・α12）
+function itemEffects(ri: ResolvedItems): LayerEffect[] {
+  const fx: LayerEffect[] = []
+  if (ri.attackAdd)      fx.push({ layer: 'equipmentItem', target: 'attack',      op: 'add', value: ri.attackAdd,      priority: 0, source: '装備アイテム' })
+  if (ri.defenseAdd)     fx.push({ layer: 'equipmentItem', target: 'defense',     op: 'add', value: ri.defenseAdd,     priority: 0, source: '装備アイテム' })
+  if (ri.attackSpeedAdd) fx.push({ layer: 'equipmentItem', target: 'attackSpeed', op: 'add', value: ri.attackSpeedAdd, priority: 0, source: '装備アイテム' })
+  return fx
+}
+
 // WorldState を GameState + BattleDef から動的生成
 function makeWorldFromSetup(gameState: GameState, battleDef: BattleDef): WorldState {
   const allyUnits: Record<string, WorldState['units'][string]> = {}
   const enemyUnits: Record<string, WorldState['units'][string]> = {}
 
   const ownedByUid = new Map<string, OwnedEquip>(gameState.inventory.map(o => [o.uid, o]))
-  // 隊ごとの装備解決を事前計算（ユニット・隊の両方で使う）
+  const itemByUid  = new Map<string, OwnedItem>(gameState.items.map(o => [o.uid, o]))
+  // 隊ごとの装備・装備アイテム解決を事前計算（ユニット・隊の両方で使う）
   const reBySquad = new Map<string, ResolvedEquip>(
     gameState.squads.map(s => [s.id, resolveEquip(s.equip, ownedByUid)]),
   )
+  const riBySquad = new Map<string, ResolvedItems>(
+    gameState.squads.map(s => [s.id, resolveItems(s.itemUids, itemByUid)]),
+  )
 
-  // 味方ユニット（GameState.roster + squads + 隊装備）
+  // 味方ユニット（GameState.roster + squads + 隊装備 + 装備アイテム）
   for (const squad of gameState.squads) {
     const re = reBySquad.get(squad.id)!
+    const ri = riBySquad.get(squad.id)!
     for (const unitId of squad.unitIds) {
       const rosterUnit = gameState.roster.find(u => u.id === unitId)
       if (rosterUnit) {
@@ -66,13 +82,13 @@ function makeWorldFromSetup(gameState: GameState, battleDef: BattleDef): WorldSt
           gauge: 0,
           alive: true,
           isLeader: squad.unitIds[0] === unitId,
-          skills: [...rosterUnit.skills, ...equipEffects(re)],
+          skills: [...rosterUnit.skills, ...equipEffects(re), ...itemEffects(ri)],
           flankMod: rosterUnit.flankMod,
           rearMod: rosterUnit.rearMod,
-          range: rosterUnit.range + re.rangeAdd,
+          range: rosterUnit.range + re.rangeAdd + ri.rangeAdd,
           attackAttr: re.attackAttr ?? rosterUnit.attackAttr,
-          armorDef: mergeArmor(rosterUnit.armorDef, re.armorDef),
-          regen: re.regenAdd || undefined,
+          armorDef: mergeArmor(mergeArmor(rosterUnit.armorDef, re.armorDef), ri.armorDef),
+          regen: (re.regenAdd + ri.regenAdd) || undefined,
           techniques: rosterUnit.techniques?.map(t => ({ ...t, gauge: 0 })),
         }
       }
@@ -118,6 +134,7 @@ function makeWorldFromSetup(gameState: GameState, battleDef: BattleDef): WorldSt
 
   const allySquads = gameState.squads.map(s => {
     const re = reBySquad.get(s.id)!
+    const ri = riBySquad.get(s.id)!
     // 隊の必殺技はリーダー（先頭ユニット）の ultId から解決
     const leader = gameState.roster.find(u => u.id === s.unitIds[0])
     const ult = resolveUltimate(leader?.ultId, leader?.level)
@@ -130,7 +147,7 @@ function makeWorldFromSetup(gameState: GameState, battleDef: BattleDef): WorldSt
       pos: { x: battleDef.allyStartX, y: 18 + gameState.squads.indexOf(s) * 20 },
       facing: 0,
       moveQueue: [] as any[],
-      moveSpeed: 1.0 * (1 + re.moveMultPct / 100),
+      moveSpeed: 1.0 * (1 + (re.moveMultPct + ri.moveMultPct) / 100),
       movementType: 'forest' as const,
       ult,
       ultGauge: 0,
@@ -408,6 +425,7 @@ export default function App() {
           gold={gameState.gold}
           potions={gameState.potions}
           inventory={gameState.inventory}
+          items={gameState.items}
           initialSquads={gameState.squads}
           onHire={handleHire}
           onUsePotion={handleUsePotion}
