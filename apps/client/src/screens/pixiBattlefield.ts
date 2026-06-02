@@ -166,9 +166,9 @@ export class PixiBattlefield {
         let prev = { x: px, y: py }
         for (const wp of squad.moveQueue) {
           const w = { x: gx(wp.x), y: gy(wp.y) }
-          g.moveTo(prev.x, prev.y).lineTo(w.x, w.y).stroke({ width: 1.5, color: baseColor, alpha: 0.53 })
-          g.moveTo(w.x - 5, w.y - 5).lineTo(w.x + 5, w.y + 5).stroke({ width: 2, color: baseColor, alpha: 0.53 })
-          g.moveTo(w.x + 5, w.y - 5).lineTo(w.x - 5, w.y + 5).stroke({ width: 2, color: baseColor, alpha: 0.53 })
+          g.moveTo(prev.x, prev.y).lineTo(w.x, w.y).stroke({ width: 3, color: baseColor, alpha: 0.6 })
+          g.moveTo(w.x - 5, w.y - 5).lineTo(w.x + 5, w.y + 5).stroke({ width: 4, color: baseColor, alpha: 0.6 })
+          g.moveTo(w.x + 5, w.y - 5).lineTo(w.x - 5, w.y + 5).stroke({ width: 4, color: baseColor, alpha: 0.6 })
           prev = w
         }
       }
@@ -234,10 +234,12 @@ export class PixiBattlefield {
         if (unit.isCommander) g.circle(ux, uy, UNIT_R + 5).stroke({ width: 2, color: '#ff3344' })
         if (unit.isElephant) this.text('🐘', ux, uy - UNIT_R - 7, 11, '#fff', { ax: 0.5, ay: 0.5 })  // α14: 象マーク
 
-        // HPバー
-        const barW = 14, barX = ux - barW / 2, barY = uy + UNIT_R + 3
-        g.rect(barX, barY, barW, 2).fill('#333333')
-        g.rect(barX, barY, barW * hpPct, 2).fill(hpPct > 0.5 ? '#44dd44' : hpPct > 0.25 ? '#ffaa00' : '#ff4444')
+        // HPバー（縦横2倍・味方=青/敵=赤で陣営を一目で）
+        const barW = 28, barH = 4, barX = ux - barW / 2, barY = uy + UNIT_R + 4
+        const hpColor = isAlly ? '#48aaff' : '#ff4444'
+        g.rect(barX - 1, barY - 1, barW + 2, barH + 2).fill({ color: '#000000', alpha: 0.55 })  // 縁取りで視認性UP
+        g.rect(barX, barY, barW, barH).fill('#222a33')
+        g.rect(barX, barY, barW * hpPct, barH).fill(hpColor)
       })
 
       if (isSelected) this.text(`${isAlly ? '味' : '敵'}${squad.name}`, px, py - 4, 9, baseColor, { ax: 0.5, ay: 1, bold: true })

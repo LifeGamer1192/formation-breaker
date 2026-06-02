@@ -36,8 +36,8 @@ export const EQUIP_DEFS: Record<string, EquipDef> = {
   sword:     { id: 'sword',     name: '剣',   slot: 'weapon', icon: '⚔️', attackAdd: 50, attr: 'slash',  perLevelAtk: 5 },
   spear:     { id: 'spear',     name: '槍',   slot: 'weapon', icon: '🔱', attackAdd: 30, defenseAdd: 20, attr: 'pierce', rangeAdd: 2, attackSpeedAdd: -1, moveMultPct: -5, perLevelAtk: 3 },
   fireSword: { id: 'fireSword', name: '炎剣', slot: 'weapon', icon: '🔥', attackAdd: 60, attr: 'fire',   attackSpeedAdd: 1, perLevelAtk: 6 },
-  shortBow:  { id: 'shortBow',  name: '短弓', slot: 'weapon', icon: '🏹', attackAdd: 10, attr: 'pierce', rangeAdd: 30, attackSpeedAdd: -3, moveMultPct: -10, perLevelAtk: 1 },
-  longBow:   { id: 'longBow',   name: '長弓', slot: 'weapon', icon: '🏹', attackAdd: 12, attr: 'pierce', rangeAdd: 40, attackSpeedAdd: -4, moveMultPct: -10, perLevelAtk: 2 },
+  shortBow:  { id: 'shortBow',  name: '短弓', slot: 'weapon', icon: '🏹', attackAdd: -15, attr: 'pierce', rangeAdd: 15, attackSpeedAdd: -3, moveMultPct: -10, perLevelAtk: 1 },
+  longBow:   { id: 'longBow',   name: '長弓', slot: 'weapon', icon: '🏹', attackAdd: -10, attr: 'pierce', rangeAdd: 20, attackSpeedAdd: -4, moveMultPct: -10, perLevelAtk: 2 },
 
   // 防具
   bronzeBody:  { id: 'bronzeBody',  name: '青銅の鎧',   slot: 'body', icon: '🛡️', armorDef: { slash: 20, pierce: 20, strike: 20 }, perLevelArmor: 1 },

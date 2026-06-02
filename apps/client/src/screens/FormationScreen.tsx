@@ -154,6 +154,16 @@ export function FormationScreen({ roster, gold, potions, inventory, items, initi
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto', padding: '12px', minHeight: '100vh' }}>
+      {/* 戦闘開始（一番上に大きく） */}
+      <div style={{ marginBottom: 12 }}>
+        <Button variant="accent" disabled={!canStart} onClick={() => onStart(squads)}
+          style={{ width: '100%', fontSize: 16, padding: '12px', fontWeight: 'bold' }}>
+          ▶ 戦闘開始
+        </Button>
+        {!canStart && (
+          <div style={{ fontSize: 11, color: C.warn, textAlign: 'center', marginTop: 4 }}>⚠ 最低1名を隊に配置してください</div>
+        )}
+      </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <h1 style={{ fontSize: 18 }}>⚔️ 隊編成</h1>
@@ -407,18 +417,8 @@ export function FormationScreen({ roster, gold, potions, inventory, items, initi
         </div>
       </div>
 
-      {/* バリデーションメッセージ */}
-      {!canStart && (
-        <div style={{ fontSize: 11, color: C.warn, textAlign: 'center', marginBottom: 8 }}>
-          ⚠ 最低1名を隊に配置してください
-        </div>
-      )}
-
-      {/* スタートボタン */}
+      {/* ゴースト登録（戦闘開始は最上部へ移動済み） */}
       <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center', marginTop: 12 }}>
-        <Button variant="accent" disabled={!canStart} onClick={() => onStart(squads)}>
-          ▶ 戦闘開始
-        </Button>
         <Button
           variant="default"
           disabled={!canStart}

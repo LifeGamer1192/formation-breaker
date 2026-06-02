@@ -64,8 +64,14 @@ export default function App() {
     setMatchType('campaign')
     setCurrentNodeId(nodeId)
     const battle = node.battle
-    // α7: 初回突入時の強制加入（援軍・一般）。入隊レベル=平均、再付与は防止
     let gs = gameState
+    // 次の戦場へ移動時、全ユニットを最大体力の20%回復（戦場クリアごとの休息。初戦は対象外）
+    if (gs.clearedNodes.length > 0) {
+      gs = { ...gs, roster: gs.roster.map(u => ({ ...u, hp: Math.min(u.maxHp, u.hp + Math.ceil(u.maxHp * 0.2)), alive: true })) }
+      setGameState(gs)
+      saveGame(gs)
+    }
+    // α7: 初回突入時の強制加入（援軍・一般）。入隊レベル=平均、再付与は防止
     const needsRecruit = (battle.recruitGenerals || battle.recruitUniques?.length) && !gs.recruitedBattles.includes(battle.id)
     if (needsRecruit) {
       const lvl = avgLevel(gs.roster)
