@@ -7,6 +7,31 @@ import { useTheme } from '../ui/ThemeContext'
 import { THEME_IDS, THEME_LABEL } from '../game/theme'
 import { parseMod, saveMod, clearSavedMod, activeModName, SAMPLE_MOD } from '../game/mod'
 import { isCloudEnabled, getIdentity, linkEmail, signInWithEmail, signInWithOAuth } from '../game/supabase'
+import { loadSettings, patchSettings } from '../game/settings'
+
+// 🎛️ 設定パネル（α19）。戦闘の既定速度・補間の有効/無効を永続化。
+function SettingsPanel() {
+  const [s, setS] = useState(() => loadSettings())
+  const upd = (patch: Parameters<typeof patchSettings>[0]) => setS(patchSettings(patch))
+  return (
+    <div style={{ maxWidth: 420, margin: '12px auto 0', background: C.panel, borderRadius: 8, padding: 10 }}>
+      <div style={{ fontSize: 12, fontWeight: 'bold', color: C.ally, marginBottom: 8 }}>🎛️ 設定</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <span style={{ fontSize: 11, color: C.sub, width: 96 }}>戦闘の既定速度</span>
+        {[1, 2, 4, 8].map(v => (
+          <button key={v} onClick={() => upd({ battleSpeed: v as 1 | 2 | 4 | 8 })}
+            style={{ fontSize: 11, padding: '3px 9px', borderRadius: 5, cursor: 'pointer',
+              background: s.battleSpeed === v ? C.ally : '#2a2a4a', color: s.battleSpeed === v ? '#031' : '#cde',
+              border: 'none', fontWeight: s.battleSpeed === v ? 'bold' : 'normal' }}>{v}x</button>
+        ))}
+      </div>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: C.text, cursor: 'pointer' }}>
+        <input type="checkbox" checked={s.reduceMotion} onChange={e => upd({ reduceMotion: e.target.checked })} />
+        補間を減らす（動きを軽く・酔い対策）
+      </label>
+    </div>
+  )
+}
 
 // 🔗 クロス端末アカウント連携（α17）。匿名→メール紐付け / 別端末でサインイン。
 function AccountPanel() {
@@ -233,6 +258,7 @@ export function MapScreen({ clearedNodes, frontier, tokens, onSelectNode, onOpen
         )}
       </div>
 
+      <SettingsPanel />
       <AccountPanel />
       <ModPanel />
     </div>

@@ -13,6 +13,7 @@ import type { BattleDef } from '../game/types'
 import { ULT_ITEMS, resolveUltItem } from '../game/ultItem'
 import { useTheme } from '../ui/ThemeContext'
 import { bgUrl } from '../game/theme'
+import { loadSettings, patchSettings } from '../game/settings'
 import { FaceIcon } from '../ui/FaceIcon'
 import { skillMarks } from '../game/skills'
 import { PixiBattlefield } from './pixiBattlefield'
@@ -253,8 +254,12 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd, ultItems, o
   const [world,    setWorld]    = useState<WorldState>(initialWorld)
   // 必殺技アイテムの残数（戦闘ローカル。発動でローカル減算＋onUseUltItemで永続化）
   const [ultItemCounts, setUltItemCounts] = useState<Record<string, number>>(() => ({ ...(ultItems ?? {}) }))
+  const settings0 = loadSettings()
+  const reduceMotion = settings0.reduceMotion
   const [running,  setRunning]  = useState(false)
-  const [speed,    setSpeed]    = useState(1)
+  const [speed,    setSpeed]    = useState<number>(settings0.battleSpeed)
+  const [multiMove, setMultiMove] = useState(false)   // α19: スマホ向け 複数移動（タップで追加）
+  const [tutorial, setTutorial]   = useState(!settings0.tutorialSeen)
   const [selected, setSelected] = useState<string | null>(null)
   const [mode,     setMode]     = useState<'deploy' | 'live' | 'replaying' | 'replay-done'>('deploy')
   const [matchMsg, setMatchMsg] = useState('')
@@ -309,7 +314,7 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd, ultItems, o
       const pb = pixiRef.current
       if (pb) {
         const { world, selected, mode, damageFloats, speed, effects } = renderStateRef.current
-        const animating = mode === 'live' || mode === 'replaying'
+        const animating = (mode === 'live' || mode === 'replaying') && !reduceMotion
         const dur = 50 / Math.max(1, speed)   // 1ステップの実時間(ms)
         const alpha = animating && interpPrevRef.current
           ? Math.min(1, (performance.now() - lastStepRef.current) / dur)
@@ -518,7 +523,7 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd, ultItems, o
 
     if (selected) {
       setWorld(prev => {
-        const waypoints = e.ctrlKey || e.metaKey
+        const waypoints = e.ctrlKey || e.metaKey || multiMove
           ? [...prev.squads.find(s => s.id === selected)!.moveQueue, clickGx]
           : [clickGx]
         const cmd: Command = { tick: prev.tick, type: 'moveSet', squadId: selected, waypoints }
@@ -607,6 +612,10 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd, ultItems, o
             })
           }}>✕ 移動キャンセル</button>
         )}
+        {mode === 'live' && (
+          <button style={btn(false, multiMove)} title="タップで移動先を次々に追加（スマホ向け）"
+            onClick={() => setMultiMove(m => !m)}>📍 複数移動 {multiMove ? 'ON' : 'OFF'}</button>
+        )}
         {(() => {
           if (!selected || mode !== 'live') return null
           const sq = world.squads.find(s => s.id === selected)
@@ -661,6 +670,15 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd, ultItems, o
           )
         })}
       </div>
+
+      {tutorial && (
+        <div style={{ marginBottom: 8, padding: '8px 12px', borderRadius: 6, fontSize: 11, lineHeight: 1.7, background: '#15203a', border: '1px solid #2a4a7a', color: '#bcd' }}>
+          <b style={{ color: '#8cf' }}>🎓 操作のヒント</b>　隊をタップで選択 → 盤面をタップで移動先指定（隊は堀塀を自動で迂回）。
+          「📍複数移動」で経路を連続指定。ゲージが満タンの隊は必殺技ボタンで発動。
+          <button onClick={() => { setTutorial(false); patchSettings({ tutorialSeen: true }) }}
+            style={{ marginLeft: 8, background: '#2a4a7a', color: '#fff', border: 'none', borderRadius: 5, padding: '3px 8px', cursor: 'pointer', fontSize: 10 }}>了解</button>
+        </div>
+      )}
 
       {matchMsg && (
         <div style={{
