@@ -5,6 +5,7 @@ import { buildUnitView, SQUAD_SPREAD } from '@fb/sim-core'
 import type { WorldState, TerrainType } from '@fb/sim-core'
 import { ALL_TERRAINS, ALL_UNIT_SPRITES, terrainUrl, terrainFile, unitSpriteFile } from '../game/theme'
 import type { ThemeId } from '../game/theme'
+import { TERRAIN_COLOR } from '../game/terrainStyle'
 
 const SCALE = 6
 const CW = 600
@@ -13,10 +14,6 @@ const TILE_PX = 60
 const UNIT_R = 9
 const DEPLOY_MAX_X = 40
 
-const TERRAIN_COLOR: Record<TerrainType, string> = {
-  plain: '#4a7a30', forest: '#1e5010', mountain: '#7a7060', desert: '#b8922a', swamp: '#3a5a3a',
-  water: '#1f3a78', river: '#2f63c8', highmount: '#4a4038', moat: '#243a5e', wall: '#4a4a4a',
-}
 const IMPASSABLE = new Set<TerrainType>(['water', 'river', 'highmount', 'moat', 'wall'])
 
 const gx = (x: number) => x * SCALE

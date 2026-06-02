@@ -4,12 +4,16 @@ import type { RosterUnit, GameState, SquadSetup } from './types'
 import { makeInitialInventory } from './equipment'
 import { makeInitialItems } from './item'
 import { makeInitialUltItems } from './ultItem'
+import { getModRoster } from './mod'
 import { SKILLS } from './skills'
 import { makeTechniques } from './technique'
 import { START_NODE } from './campaign'
 
 // ─── 初期兵士ロスター（カルタゴ陣営）──────────────────────────────
 export function makeInitialRoster(): RosterUnit[] {
+  // α16: Mod が初期ロスターを差し替えていれば、それを使う（新規ゲームのみ）
+  const mr = getModRoster()
+  if (mr && mr.length) return mr.map(u => ({ ...u }))
   return [
     {
       id: 'unit_hannibal',
