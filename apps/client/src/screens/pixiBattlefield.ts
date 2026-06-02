@@ -176,6 +176,7 @@ export class PixiBattlefield {
 
         if (unit.isLeader) g.circle(ux, uy - UNIT_R - 3, 3).fill('#ffdd00')
         if (unit.isCommander) g.circle(ux, uy, UNIT_R + 5).stroke({ width: 2, color: '#ff3344' })
+        if (unit.isElephant) this.text('🐘', ux, uy - UNIT_R - 7, 11, '#fff', { ax: 0.5, ay: 0.5 })  // α14: 象マーク
 
         // HPバー
         const barW = 14, barX = ux - barW / 2, barY = uy + UNIT_R + 3

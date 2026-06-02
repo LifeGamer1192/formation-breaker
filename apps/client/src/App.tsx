@@ -120,6 +120,8 @@ function makeWorldFromSetup(gameState: GameState, battleDef: BattleDef): WorldSt
           range: rosterUnit.range,
           attackAttr: rosterUnit.attackAttr,
           armorDef: rosterUnit.armorDef,
+          isElephant: rosterUnit.isElephant,   // α14: 象（敵に配置時）
+          canLearn: rosterUnit.canLearn,        // α13: 学び（敵に配置時）
         }
       }
     }

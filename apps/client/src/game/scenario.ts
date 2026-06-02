@@ -24,6 +24,8 @@ export interface ScenarioUnit {
   skills?: LayerEffect[]  // 効果（インライン）
   flankMod?: number
   rearMod?: number
+  isElephant?: boolean    // α14: 象（体力半分で離脱）
+  canLearn?: boolean      // α13: 学び（隊スキル）
 }
 
 export interface ScenarioSquad {
@@ -53,6 +55,7 @@ function buildUnit(u: ScenarioUnit, side: 'ally' | 'enemy', isLeader: boolean): 
     flankMod: u.flankMod ?? -30, rearMod: u.rearMod ?? -50, range: u.range ?? 20,
     attackAttr: u.attackAttr, armorDef: u.armorDef,
     techniques: u.techniques && u.techniques.length ? makeTechniques(u.techniques) : undefined,
+    isElephant: u.isElephant, canLearn: u.canLearn,
   }
 }
 
@@ -149,9 +152,11 @@ export const SAMPLE_SCENARIO: BattleScenario = {
       { id: 'e0', name: '重装ローマ兵A', hp: 90, attack: 60, defense: 60, attackAttr: 'pierce', armorDef: { slash: 25, pierce: 25, strike: 25 } },
       { id: 'e1', name: '重装ローマ兵B', hp: 90, attack: 60, defense: 60, attackAttr: 'pierce', armorDef: { slash: 25, pierce: 25, strike: 25 } },
       { id: 'e_cmd', name: 'ローマ百人隊長', hp: 110, attack: 70, defense: 70, attackAttr: 'slash', isLeader: true },
+      { id: 'e_zou', name: '戦象', hp: 240, attack: 100, defense: 10, attackAttr: 'strike', range: 12, attackSpeed: 0.7, isElephant: true },
     ],
     squads: [
       { id: 'e_front', name: '敵前衛', unitIds: ['e0', 'e1'], formation: 'square', pos: { x: 75, y: 30 } },
+      { id: 'e_zou_sq', name: '象部隊', unitIds: ['e_zou'], formation: 'solo', pos: { x: 80, y: 45 } },
       { id: 'e_rear', name: '敵本陣', unitIds: ['e_cmd'], formation: 'solo', pos: { x: 90, y: 30 } },
     ],
   },

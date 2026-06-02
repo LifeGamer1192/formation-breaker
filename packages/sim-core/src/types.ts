@@ -31,7 +31,7 @@ export interface UltimateRuntime {
   id:            string
   name:          string
   icon:          string
-  kind:          'aoeDamage' | 'squadBuff' | 'heal' | 'terrain' | 'attrChange'
+  kind:          'aoeDamage' | 'squadBuff' | 'heal' | 'terrain' | 'attrChange' | 'elephantDisable'
   range:         number            // 発動可能距離（隊中心→対象）
   radius:        number            // 効果半径（範囲技。heal: 0=自隊のみ / >0=範囲内の味方全隊。terrain: 変化半径）
   ultSpeed:      number            // ゲージ充填速度/tick
@@ -82,6 +82,10 @@ export interface UnitState {
   attrOverride?: { attr: AttrId; untilTick: number }
   // α13: 「学び」隊スキル。交戦した敵隊のスキルをコピーして実行できる（仕様 L418）
   canLearn?:    boolean
+  // α14: 象ユニット。体力が半分以下になると離脱する（仕様 L356）
+  isElephant?:  boolean
+  // α14: 離脱済み（象が半分以下で戦線離脱）。alive=false だが撃破ではない
+  left?:        boolean
 }
 
 export interface SquadState {
@@ -101,6 +105,8 @@ export interface SquadState {
   ultGauge?:    number
   // α12+: 敵AIアルゴリズム（front=接近して射程手前で停止 / rear=接近＋近すぎたら離れる）
   ai?:          'front' | 'rear'
+  // α14: 象無効化の必殺技で移動不可にされた期限（tick < moveDisabledUntil の間は移動停止）
+  moveDisabledUntil?: number
 }
 
 export interface WorldState {

@@ -227,6 +227,15 @@ export function tickCombat(world: WorldState, rng: Prng): WorldState {
     units[unit.id].techniques = techs
   }
 
+  // ③.5 象の離脱（α14・仕様 L356）: 体力が半分以下になった象は戦線離脱（撃破ではない）
+  for (const unit of Object.values(units)) {
+    if (!unit.alive || !unit.isElephant || unit.left) continue
+    if (unit.hp * 2 <= unit.maxHp) {
+      units[unit.id] = { ...units[unit.id], alive: false, left: true }
+      newLog.push(`[T${world.tick + 1}] 🐘${unit.name} は半数を割り戦線離脱した`)
+    }
+  }
+
   // ④ 勝敗判定（大将撃破で決着）
   const outcome = checkOutcome(units)
   if (outcome.finished && outcome.winner) {
@@ -272,6 +281,7 @@ function applyUltEffect(world: WorldState, caster: SquadState, ult: UltimateRunt
   for (const [k, v] of Object.entries(world.units)) units[k] = { ...v }
   const newLog: string[] = []
   let newTerrain = world.terrain   // terrain 種別で差し替える（他種別は据置）
+  let disable: { ids: Set<string>; until: number } | null = null  // elephantDisable で移動不可にする隊
 
   const aliveOf = (sq: SquadState) => sq.unitIds.map(id => world.units[id]).filter(u => u?.alive)
 
@@ -362,10 +372,35 @@ function applyUltEffect(world: WorldState, caster: SquadState, ult: UltimateRunt
       units[u.id] = { ...units[u.id], attrOverride: { attr, untilTick: until } }
     }
     newLog.push(`[T${world.tick}] ✨${caster.name}: ${ult.icon}${ult.name}！ 攻撃属性→${ATTRIBUTES[attr].icon}（${((ult.durationTicks ?? 200) / 20).toFixed(0)}秒）`)
+  } else if (ult.kind === 'elephantDisable') {
+    // 象無効化（α14・仕様 L402）。範囲内で象を含む敵隊を一定時間移動不可にする。
+    let center = targetPos
+    if (!center) {
+      const enemySquads = world.squads.filter(s => s.side !== caster.side && aliveOf(s).length > 0)
+      if (enemySquads.length === 0) return world
+      center = enemySquads.reduce((a, b) => dist(caster.pos, a.pos) < dist(caster.pos, b.pos) ? a : b).pos
+    }
+    if (dist(caster.pos, center) > ult.range + ult.radius) return world // 射程外 → 不発
+    const ids = new Set<string>()
+    for (const s of world.squads) {
+      if (s.side === caster.side) continue
+      if (dist(center, s.pos) > ult.radius) continue
+      // 範囲内かつ「象を含む」隊のみ対象
+      if (!s.unitIds.some(id => world.units[id]?.alive && world.units[id]?.isElephant)) continue
+      ids.add(s.id)
+    }
+    if (ids.size === 0) return world // 範囲内に象なし → 不発（ゲージ温存）
+    disable = { ids, until: world.tick + (ult.durationTicks ?? 100) }
+    newLog.push(`[T${world.tick}] ✨${caster.name}: ${ult.icon}${ult.name}！ 象${ids.size}隊を移動不可（${((ult.durationTicks ?? 100) / 20).toFixed(0)}秒）`)
   }
 
-  // ゲージ消費（通常必殺技のみ。アイテム発動はゲージに依存しない）
-  const squads = resetGauge ? world.squads.map(s => s.id === caster.id ? { ...s, ultGauge: 0 } : s) : world.squads
+  // ゲージ消費（通常必殺技のみ）＋ 象無効化の移動不可付与
+  const squads = world.squads.map(s => {
+    let ns = s
+    if (resetGauge && s.id === caster.id) ns = { ...ns, ultGauge: 0 }
+    if (disable && disable.ids.has(s.id)) ns = { ...ns, moveDisabledUntil: disable.until }
+    return ns
+  })
 
   // 勝敗再判定（範囲攻撃で決着しうる・大将撃破含む）
   const outcome = checkOutcome(units)

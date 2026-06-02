@@ -40,6 +40,11 @@ export const ULTIMATES: Record<string, UltCatalogEntry> = {
     attr: 'fire', range: 50, radius: 0, ultSpeed: 1, gaugeMax: 100, durationTicks: 240,
     desc: '一定時間（12秒）、自隊の通常攻撃を火属性に変える（弱点突き）',
   },
+  zouMukou: {
+    id: 'zouMukou', name: '象無効化', icon: '🚫', kind: 'elephantDisable',
+    range: 100, radius: 35, ultSpeed: 1, gaugeMax: 100, durationTicks: 100,
+    desc: '範囲内（半径35）で象を含む敵隊を5秒間移動不可にする（仕様：スキピオ）',
+  },
 }
 
 // ultId（兵士の持つ必殺技）→ 隊にセットする UltimateRuntime を解決

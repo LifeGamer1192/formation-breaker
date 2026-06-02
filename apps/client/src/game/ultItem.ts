@@ -67,6 +67,14 @@ export const ULT_ITEMS: Record<string, UltItemDef> = {
       attr: 'thunder', range: 0, radius: 0, gaugeMax: 0, ultSpeed: 0, durationTicks: 240,
     },
   },
+  elephantGong: {
+    id: 'elephantGong', name: '象封じの銅鑼', icon: '🔔',
+    desc: '最寄りの敵地点（半径35）で象を含む敵隊を5秒間移動不可にする',
+    ult: {
+      id: 'item_elephantGong', name: '象封じの銅鑼', icon: '🔔', kind: 'elephantDisable',
+      range: 100, radius: 35, gaugeMax: 0, ultSpeed: 0, durationTicks: 100,
+    },
+  },
 }
 
 // defId → 発動する UltimateRuntime を解決
@@ -77,5 +85,5 @@ export function resolveUltItem(defId: string): UltimateRuntime | undefined {
 
 // 初期所持（defId→個数）
 export function makeInitialUltItems(): Record<string, number> {
-  return { fireJar: 2, warHorn: 1, healWater: 1, moatScroll: 1, thunderOil: 1 }
+  return { fireJar: 2, warHorn: 1, healWater: 1, moatScroll: 1, thunderOil: 1, elephantGong: 1 }
 }

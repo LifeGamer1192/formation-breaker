@@ -161,6 +161,8 @@ export function tickMovement(world: WorldState): WorldState {
     // 全ユニット離脱済みの隊は移動しない・ゲージも止める
     const alive = s.unitIds.filter(id => world.units[id]?.alive).length
     if (alive === 0) return s
+    // α14: 象無効化で移動不可にされている間は移動しない（ゲージ充填は継続）
+    if (s.moveDisabledUntil != null && world.tick < s.moveDisabledUntil) return fillUlt(s)
     const moved = s.ai
       ? aiMove(s, world.squads, world.units, alive, grid)
       : tickSquad(s, world.squads, alive, grid)
