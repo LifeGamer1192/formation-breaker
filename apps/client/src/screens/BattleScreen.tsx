@@ -12,6 +12,7 @@ import type {
 import type { BattleDef } from '../game/types'
 import { ULT_ITEMS, resolveUltItem } from '../game/ultItem'
 import { useTheme } from '../ui/ThemeContext'
+import { bgUrl } from '../game/theme'
 import { FaceIcon } from '../ui/FaceIcon'
 import { skillMarks } from '../game/skills'
 import { PixiBattlefield } from './pixiBattlefield'
@@ -525,7 +526,12 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd, ultItems, o
   const facingHud = facingInfos.slice(0, 2)
 
   return (
-    <div style={{ maxWidth: 720, margin: '0 auto', padding: '12px', minHeight: '100vh' }}>
+    <div style={{
+      maxWidth: 720, margin: '0 auto', padding: '12px', minHeight: '100vh',
+      // α15: 戦場背景をテーマ画像で（暗いオーバーレイで可読性を確保・未設置は暗背景にフォールバック）
+      backgroundImage: `linear-gradient(rgba(10,10,20,0.84), rgba(10,10,20,0.93)), url(${bgUrl(theme)})`,
+      backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed',
+    }}>
       <h1 style={{ fontSize: 17, marginBottom: 2 }}>
         Formation Breaker
         <span style={{ fontSize: 10, color: '#888', marginLeft: 8 }}>Proto#2 - {battleDef.name}</span>

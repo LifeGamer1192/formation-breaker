@@ -3,7 +3,7 @@
 import { Application, Container, Graphics, Text, Assets, Texture } from 'pixi.js'
 import { buildUnitView, SQUAD_SPREAD } from '@fb/sim-core'
 import type { WorldState, TerrainType } from '@fb/sim-core'
-import { ALL_TERRAINS, ALL_UNIT_SPRITES, terrainUrl, bgUrl, terrainFile, unitSpriteFile } from '../game/theme'
+import { ALL_TERRAINS, ALL_UNIT_SPRITES, terrainUrl, terrainFile, unitSpriteFile } from '../game/theme'
 import type { ThemeId } from '../game/theme'
 
 const SCALE = 6
@@ -40,7 +40,6 @@ export class PixiBattlefield {
   private themeId: ThemeId | null = null
   private texTerrain = new Map<string, Texture>()
   private texUnit = new Map<string, Texture>()
-  private texBg: Texture | null = null
 
   // テーマのテクスチャを読み込む（失敗したものはスキップ＝フォールバック）。完了時 onReady。
   async setTheme(themeId: ThemeId, onReady?: () => void): Promise<void> {
@@ -54,10 +53,9 @@ export class PixiBattlefield {
     await Promise.all(ALL_TERRAINS.map(async id => { const t = await tryLoad(terrainUrl(themeId, id)); if (t) terr.set(id, t) }))
     const units = new Map<string, Texture>()
     await Promise.all(ALL_UNIT_SPRITES.map(async s => { const t = await tryLoad(`/themes/${themeId}/unit/${s}.png`); if (t) units.set(s, t) }))
-    const bg = await tryLoad(bgUrl(themeId))
     // 競合（連続切替）防止: 最新テーマのみ反映
     if (this.themeId !== themeId) return
-    this.texTerrain = terr; this.texUnit = units; this.texBg = bg
+    this.texTerrain = terr; this.texUnit = units
     onReady?.()
   }
 
@@ -91,10 +89,8 @@ export class PixiBattlefield {
     g.clear()
     for (const c of this.textLayer.removeChildren()) c.destroy()
 
-    // ── 戦場背景（テーマ画像があれば全面に敷く）──
-    if (this.texBg) g.texture(this.texBg, 0xffffff, 0, 0, CW, CH)
-
     // ── 地形タイル（テーマ画像 or 色塗りフォールバック）──
+    // ※戦場背景(bg)は地形タイルが全面を覆うため、BattleScreen の外枠背景として表示する（α15）
     const grid = world.terrain ?? []
     grid.forEach((row, ri) => row.forEach((terrain, ci) => {
       const x = ci * TILE_PX, y = ri * TILE_PX
