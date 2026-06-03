@@ -11,6 +11,7 @@ import type {
 } from '@fb/sim-core'
 import type { BattleDef } from '../game/types'
 import { ULT_ITEMS, resolveUltItem } from '../game/ultItem'
+import { TECHNIQUES } from '../game/technique'
 import { useTheme } from '../ui/ThemeContext'
 import { bgUrl } from '../game/theme'
 import { loadSettings, patchSettings } from '../game/settings'
@@ -20,6 +21,12 @@ import { PixiBattlefield } from './pixiBattlefield'
 import type { FxEffect, AttackTracer } from './pixiBattlefield'
 
 interface DmgFloat { id: string; x: number; y: number; dmg: number; age: number; side: 'ally'|'enemy' }
+
+// 技ボタンのツールチップ（効果説明＋操作）。runtime は desc を持たないので TECHNIQUES から引く
+function techTip(t: { id: string; name: string; icon?: string }): string {
+  const d = TECHNIQUES[t.id]
+  return d ? `${d.icon}${d.name}: ${d.desc}（クリックでオンオフ）` : `${t.name}（クリックでオンオフ）`
+}
 
 const SCALE   = 6
 const CW      = 600
@@ -113,8 +120,8 @@ function UnitCard({ unit, squad, color, squadUnits, tick, onToggleTech }: {
             return (
               <span
                 key={t.id}
-                title={`${t.name}（クリックでオンオフ）`}
-                onClick={clickable ? () => onToggleTech!(unit.id, t.id, !t.enabled) : undefined}
+                title={techTip(t)}
+                onClick={clickable ? (e) => { e.stopPropagation(); onToggleTech!(unit.id, t.id, !t.enabled) } : undefined}
                 style={{
                   fontSize: 9, padding: '0 4px', borderRadius: 3, position: 'relative', overflow: 'hidden',
                   background: t.enabled ? '#332' : '#222',
@@ -519,7 +526,7 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd, ultItems, o
       if (selected) {
         const sq = world.squads.find(s => s.id === selected)
         if (sq && sq.side === 'ally') {
-          const pos = { x: Math.min(DEPLOY_MAX_X, Math.max(3, clickGx.x)), y: Math.min(57, Math.max(3, clickGx.y)) }
+          const pos = { x: Math.min(DEPLOY_MAX_X, Math.max(8, clickGx.x)), y: Math.min(52, Math.max(8, clickGx.y)) }
           setWorld(prev => ({ ...prev, squads: prev.squads.map(s => s.id === selected ? { ...s, pos } : s) }))
         }
       }

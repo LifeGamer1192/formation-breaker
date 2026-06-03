@@ -29,6 +29,28 @@ import { C } from '../ui/theme'
 import { Button } from '../ui/Button'
 import { FaceIcon } from '../ui/FaceIcon'
 
+// 装備の効果サマリ（マウスオーバー表示用）
+function equipTip(defId: string): string {
+  const d = EQUIP_DEFS[defId]
+  if (!d) return ''
+  const p: string[] = []
+  if (d.attackAdd) p.push(`攻${d.attackAdd > 0 ? '+' : ''}${d.attackAdd}`)
+  if (d.defenseAdd) p.push(`防+${d.defenseAdd}`)
+  if (d.attackSpeedAdd) p.push(`攻速${d.attackSpeedAdd > 0 ? '+' : ''}${d.attackSpeedAdd}`)
+  if (d.rangeAdd) p.push(`射程+${d.rangeAdd}`)
+  if (d.moveMultPct) p.push(`移動${d.moveMultPct > 0 ? '+' : ''}${d.moveMultPct}%`)
+  if (d.attr) p.push(`属性:${ATTRIBUTES[d.attr].label}`)
+  if (d.regen) p.push(`再生${d.regen}/tick`)
+  if (d.moveType) p.push(`移動型:${d.moveType}`)
+  if (d.armorDef) p.push('防御:' + Object.entries(d.armorDef).map(([k, v]) => `${ATTRIBUTES[k as keyof typeof ATTRIBUTES].label}+${v}`).join(' '))
+  return `${d.name} — ${p.join(' / ') || '効果なし'}`
+}
+// 装備アイテムの効果（desc）
+function itemTip(defId: string): string {
+  const d = ITEM_DEFS[defId]
+  return d ? `${d.name} — ${d.desc}` : ''
+}
+
 export interface FormationScreenProps {
   roster: RosterUnit[]
   gold: number
@@ -365,7 +387,7 @@ export function FormationScreen({ roster, gold, potions, inventory, items, initi
                           key={slot}
                           value={selUid}
                           onChange={e => setEquipSlot(squad.id, slot, e.target.value)}
-                          title={SLOT_LABEL[slot]}
+                          title={selUid ? equipTip(inventory.find(o => o.uid === selUid)?.defId ?? '') : SLOT_LABEL[slot]}
                           style={{
                             background: selUid ? '#142814' : C.card, color: selUid ? C.green : C.sub,
                             border: '1px solid #333', borderRadius: 4, padding: '1px 3px', fontSize: 9,
@@ -375,7 +397,7 @@ export function FormationScreen({ roster, gold, potions, inventory, items, initi
                           <option value="">{SLOT_LABEL[slot]}：なし</option>
                           {opts.map(o => {
                             const d = EQUIP_DEFS[o.defId]
-                            return <option key={o.uid} value={o.uid}>{d.icon}{d.name} Lv{o.level}</option>
+                            return <option key={o.uid} value={o.uid} title={equipTip(o.defId)}>{d.icon}{d.name} Lv{o.level}</option>
                           })}
                         </select>
                       )
@@ -394,7 +416,7 @@ export function FormationScreen({ roster, gold, potions, inventory, items, initi
                           key={idx}
                           value={selUid}
                           onChange={e => setItemSlot(squad.id, idx, e.target.value)}
-                          title={`装備アイテム${idx + 1}`}
+                          title={selUid ? itemTip(items.find(o => o.uid === selUid)?.defId ?? '') : `装備アイテム${idx + 1}`}
                           style={{
                             background: selUid ? '#2a1a30' : C.card, color: selUid ? '#d9f' : C.sub,
                             border: '1px solid #333', borderRadius: 4, padding: '1px 3px', fontSize: 9,

@@ -19,7 +19,8 @@ function makeRoman(id: string, name: string, kit: RomanKit): RosterUnit {
     attackAttr: 'pierce',
   }
   if (kit === 'sword') return { ...base, attack: 250, attackAttr: 'slash', armorDef: { ...BRONZE_SET } }
-  if (kit === 'bow')   return { ...base, attack: 212, range: 50, attackSpeed: 6, attackAttr: 'pierce', armorDef: { ...BRONZE_SET } }
+  // 長弓: 基礎200 + 装備(攻-10/射程+20/攻速-4) = 攻190/射程30/攻速6（プレイヤー長弓と同値）
+  if (kit === 'bow')   return { ...base, attack: 190, range: 30, attackSpeed: 6, attackAttr: 'pierce', armorDef: { ...BRONZE_SET } }
   return base
 }
 

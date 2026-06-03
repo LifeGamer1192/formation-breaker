@@ -185,6 +185,18 @@ function applySeparation(squads: SquadState[], units: WorldState['units']): Squa
     : s)
 }
 
+// 隊位置を「ユニット表示サイズ＋陣形の広がり」ぶん内側へクランプ。
+// 戦場100×60ゲーム単位。隊中心から兵士は最大 SQUAD_SPREAD(=5) ＋ 表示(HPバー等 約3) 外側に出る。
+const FIELD_MX = 8, FIELD_MY = 8
+function clampToField(squads: SquadState[], units: WorldState['units']): SquadState[] {
+  return squads.map(s => {
+    if (!s.unitIds.some(id => units[id]?.alive)) return s
+    const x = Math.min(100 - FIELD_MX, Math.max(FIELD_MX, s.pos.x))
+    const y = Math.min(60 - FIELD_MY, Math.max(FIELD_MY, s.pos.y))
+    return (x === s.pos.x && y === s.pos.y) ? s : { ...s, pos: { x, y } }
+  })
+}
+
 export function tickMovement(world: WorldState): WorldState {
   const grid = world.terrain ?? DEMO_TERRAIN
   let squads = world.squads.map(s => {
@@ -199,6 +211,7 @@ export function tickMovement(world: WorldState): WorldState {
     return fillUlt(moved)
   })
   squads = applySeparation(squads, world.units)   // 重なり緩和（視認性）
+  squads = clampToField(squads, world.units)      // 表示（HPバー等）が画面端で切れないよう内側へ
   const dz = tickTerrainDestruction({ ...world, squads }, grid)
   return {
     ...world,

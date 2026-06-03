@@ -135,7 +135,7 @@ export function makeWorldFromSetup(gameState: GameState, battleDef: BattleDef): 
       side: 'ally' as const,
       unitIds: s.unitIds,
       formation: s.formation,
-      pos: { x: battleDef.allyStartX, y: 18 + gameState.squads.indexOf(s) * 20 },
+      pos: { x: battleDef.allyStartX, y: 12 + gameState.squads.indexOf(s) * 18 },  // 表示が画面端で切れない範囲に
       facing: 0,
       moveQueue: [] as { x: number; y: number }[],
       moveSpeed: 1.0 * (1 + (re.moveMultPct + ri.moveMultPct) / 100),
@@ -151,7 +151,7 @@ export function makeWorldFromSetup(gameState: GameState, battleDef: BattleDef): 
     side: 'enemy' as const,
     unitIds: s.unitIds,
     formation: s.formation,
-    pos: { x: battleDef.enemyStartX, y: 18 + idx * 20 },
+    pos: { x: battleDef.enemyStartX, y: 12 + idx * 18 },  // 表示が画面端で切れない範囲に
     facing: Math.PI,
     moveQueue: [] as { x: number; y: number }[],
     moveSpeed: 1.0,

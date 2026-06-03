@@ -521,6 +521,16 @@ function applySeparation(squads, units) {
   }
   return squads.map((s, i) => alive[i] ? { ...s, pos: { x: Math.min(98, Math.max(2, pos[i].x)), y: Math.min(58, Math.max(2, pos[i].y)) } } : s);
 }
+var FIELD_MX = 8;
+var FIELD_MY = 8;
+function clampToField(squads, units) {
+  return squads.map((s) => {
+    if (!s.unitIds.some((id) => units[id]?.alive)) return s;
+    const x = Math.min(100 - FIELD_MX, Math.max(FIELD_MX, s.pos.x));
+    const y = Math.min(60 - FIELD_MY, Math.max(FIELD_MY, s.pos.y));
+    return x === s.pos.x && y === s.pos.y ? s : { ...s, pos: { x, y } };
+  });
+}
 function tickMovement(world) {
   const grid = world.terrain ?? DEMO_TERRAIN;
   let squads = world.squads.map((s) => {
@@ -531,6 +541,7 @@ function tickMovement(world) {
     return fillUlt(moved);
   });
   squads = applySeparation(squads, world.units);
+  squads = clampToField(squads, world.units);
   const dz = tickTerrainDestruction({ ...world, squads }, grid);
   return {
     ...world,
