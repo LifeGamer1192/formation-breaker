@@ -1,9 +1,47 @@
 import { useState } from 'react'
-import { FORMATION_LABEL, ATTRIBUTES } from '@fb/sim-core'
+import { FORMATION_LABEL, FORMATION_CONDITION, ATTRIBUTES } from '@fb/sim-core'
+
+// 陣形が成立する人数の表記（例: 方陣→(4人) / 横陣→(2-6人) / 円陣→(4/6人)）
+function formationCountHint(f: FormationType): string {
+  const ok = [1, 2, 3, 4, 5, 6].filter(n => FORMATION_CONDITION[f](n))
+  if (ok.length >= 6) return ''
+  const contiguous = ok.length > 1 && ok.every((v, i) => i === 0 || v === ok[i - 1] + 1)
+  return contiguous ? `(${ok[0]}-${ok[ok.length - 1]}人)` : `(${ok.join('/')}人)`
+}
 import type { FormationType } from '@fb/sim-core'
 import type { RosterUnit, SquadSetup } from '../game/types'
 import { ULTIMATES } from '../game/ultimate'
 import { TECHNIQUES } from '../game/technique'
+
+const attrLabel = (a?: string) => ATTRIBUTES[(a ?? 'slash') as keyof typeof ATTRIBUTES].label
+
+// 必殺技の詳細（編成画面のツールチップ用）
+export function ultDetail(ultId: string, level = 1): string {
+  const d = ULTIMATES[ultId]
+  if (!d) return ''
+  const sec = (t?: number) => `${((t ?? 0) / 20).toFixed(0)}秒`
+  const buffs = (d.buffs ?? []).map(b => `${b.target}${b.op === 'mul' ? `${b.value > 0 ? '+' : ''}${b.value}%` : `${b.value > 0 ? '+' : ''}${b.value}`}`).join(' ')
+  let eff = ''
+  const pw = (d.power ?? 0) + (d.perLevelPower ?? 0) * (Math.max(1, level) - 1)
+  if (d.kind === 'aoeDamage') eff = `範囲ダメージ 威力${pw} ${attrLabel(d.attr)} 射程${d.range}/範囲${d.radius}`
+  else if (d.kind === 'heal') eff = `回復${pw} ${d.radius > 0 ? `範囲${d.radius}` : '自隊'}`
+  else if (d.kind === 'squadBuff') eff = `隊バフ ${buffs}（${sec(d.durationTicks)}）`
+  else if (d.kind === 'terrain') eff = `地形を${d.terrainType}へ 範囲${d.radius}`
+  else if (d.kind === 'attrChange') eff = `攻撃属性→${attrLabel(d.attr)}（${sec(d.durationTicks)}）`
+  else if (d.kind === 'elephantDisable') eff = `象を移動不可 範囲${d.radius}（${sec(d.durationTicks)}）`
+  return `${d.icon}${d.name}: ${d.desc}\n   [${eff} / ゲージ${d.gaugeMax}・充填速度${d.ultSpeed}]`
+}
+
+// 技の詳細
+export function techDetail(techId: string): string {
+  const d = TECHNIQUES[techId]
+  if (!d) return ''
+  const buffs = (d.buffs ?? []).map(b => `${b.target}${b.op === 'mul' ? `+${b.value}%` : `+${b.value}`}`).join(' ')
+  let eff = ''
+  if (d.kind === 'bonusAttack') eff = `追撃 威力${d.power} ${attrLabel(d.attr)} 射程${d.range}`
+  else if (d.kind === 'selfBuff') eff = `自己バフ ${buffs}（${((d.durationTicks ?? 0) / 20).toFixed(0)}秒）`
+  return `${d.icon}${d.name}: ${d.desc}\n   [${eff} / ゲージ${d.gaugeMax}・充填速度${d.speed}・優先${d.priority}]`
+}
 
 // ホバー時の詳細全ステータス（native title）
 function unitTooltip(u: RosterUnit): string {
@@ -12,12 +50,12 @@ function unitTooltip(u: RosterUnit): string {
   lines.push(`Lv.${u.level}  EXP ${u.exp}/${u.level * 100}`)
   lines.push(`HP ${u.hp}/${u.maxHp}`)
   lines.push(`攻撃 ${u.attack}  防御 ${u.defense}  攻撃速度 ${u.attackSpeed}  射程 ${u.range}`)
-  lines.push(`攻撃属性 ${ATTRIBUTES[u.attackAttr ?? 'slash'].label}  側面${u.flankMod}%  背面${u.rearMod}%`)
+  lines.push(`攻撃属性 ${attrLabel(u.attackAttr)}  側面${u.flankMod}%  背面${u.rearMod}%`)
   if (u.armorDef && Object.keys(u.armorDef).length)
     lines.push('属性防御 ' + Object.entries(u.armorDef).map(([a, v]) => `${ATTRIBUTES[a as keyof typeof ATTRIBUTES].label}+${v}`).join(' '))
   if (u.traitName) lines.push(`特性 ${u.traitName}`)
-  if (u.ultId && ULTIMATES[u.ultId]) lines.push(`必殺技 ${ULTIMATES[u.ultId].name}`)
-  if (u.techniques?.length) lines.push('技 ' + u.techniques.map(t => TECHNIQUES[t.id]?.name ?? t.name).join('・'))
+  if (u.ultId && ULTIMATES[u.ultId]) lines.push('必殺技 ' + ultDetail(u.ultId, u.level))
+  if (u.techniques?.length) lines.push('技 ' + u.techniques.map(t => techDetail(t.id)).join('\n   '))
   return lines.join('\n')
 }
 import { MERCENARY_COST, autoArrange } from '../game/army'
@@ -43,7 +81,10 @@ function equipTip(defId: string): string {
   if (d.regen) p.push(`再生${d.regen}/tick`)
   if (d.moveType) p.push(`移動型:${d.moveType}`)
   if (d.armorDef) p.push('防御:' + Object.entries(d.armorDef).map(([k, v]) => `${ATTRIBUTES[k as keyof typeof ATTRIBUTES].label}+${v}`).join(' '))
-  return `${d.name} — ${p.join(' / ') || '効果なし'}`
+  const grow: string[] = []
+  if (d.perLevelAtk) grow.push(`攻+${d.perLevelAtk}/Lv`)
+  if (d.perLevelArmor) grow.push(`防+${d.perLevelArmor}/Lv`)
+  return `${d.icon}${d.name}（${SLOT_LABEL[d.slot]}）— ${p.join(' / ') || '効果なし'}${grow.length ? '\n   成長: ' + grow.join(' ') : ''}`
 }
 // 装備アイテムの効果（desc）
 function itemTip(defId: string): string {
@@ -312,9 +353,14 @@ export function FormationScreen({ roster, gold, potions, inventory, items, initi
                         padding: '2px 6px', fontSize: 10, cursor: 'pointer'
                       }}
                     >
-                      {FORMATIONS.map(f => (
-                        <option key={f} value={f}>{FORMATION_LABEL[f]}</option>
-                      ))}
+                      {FORMATIONS.map(f => {
+                        const valid = FORMATION_CONDITION[f](squad.unitIds.length)
+                        return (
+                          <option key={f} value={f} disabled={!valid}>
+                            {FORMATION_LABEL[f]}{formationCountHint(f)}{valid ? '' : ' ✕'}
+                          </option>
+                        )
+                      })}
                     </select>
                   </div>
 

@@ -25,9 +25,11 @@ export interface BattleResult {
 
 function simBattle(gs: GameState, battle: BattleDef, seed: number, maxTicks = 3000): WorldState {
   const world0 = makeWorldFromSetup(gs, battle)
-  // 味方隊は接近AI。ただし大将隊（最後尾＝last ally squad）は後置 rear（実プレイヤー同様に温存）
+  // 味方隊は接近AI。ただし大将（固定ユニット）のいる隊は後置 rear（実プレイヤー同様に温存）
+  const cmdUnit = Object.values(world0.units).find(u => u.isCommander && u.side === 'ally')
   const allyIds = world0.squads.filter(s => s.side === 'ally').map(s => s.id)
-  const cmdSquadId = allyIds[allyIds.length - 1]
+  const cmdSquadId = world0.squads.find(s => s.side === 'ally' && cmdUnit && s.unitIds.includes(cmdUnit.id))?.id
+    ?? allyIds[allyIds.length - 1]
   let w: WorldState = {
     ...world0,
     squads: world0.squads.map(s => s.side === 'ally'

@@ -595,7 +595,8 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd, ultItems, o
         ))}
       </div>
 
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+      {/* 操作ボタン行: 隊選択でボタン数が変わってもフィールドがズレないよう最小高さを固定 */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8, minHeight: 64, alignContent: 'flex-start' }}>
         {mode === 'deploy' && (
           <button style={btn(false, true)} onClick={startBattle}>⚔️ 開戦</button>
         )}
@@ -727,7 +728,7 @@ export function BattleScreen({ battleDef, initialWorld, onBattleEnd, ultItems, o
         <ArmyPanel title="🏴 味方軍" side="ally"  squads={allySquads}  units={world.units} color="#4af"
           selected={selected} onSelect={id => setSelected(s => s === id ? null : id)}
           onFormation={changeFormation} isReplay={isReplay} tick={world.tick}
-          onToggleTech={mode === 'live' ? toggleTech : undefined} />
+          onToggleTech={(mode === 'live' || mode === 'deploy') ? toggleTech : undefined} />
         <ArmyPanel title="⚔️ 敵軍"   side="enemy" squads={enemySquads} units={world.units} color="#f64"
           selected={selected} onSelect={id => setSelected(s => s === id ? null : id)}
           onFormation={changeFormation} isReplay={isReplay} tick={world.tick} />

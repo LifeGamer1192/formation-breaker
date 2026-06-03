@@ -115,9 +115,15 @@ export function makeWorldFromSetup(gameState: GameState, battleDef: BattleDef): 
     }
   }
 
-  // α8: 大将＝最後尾の隊のリーダー（撃破で陣営敗北）
+  // 味方大将＝特定ユニット固定（現状ハンニバル）。一般兵の撃破で敗北しないように。
+  // ハンニバル未出撃時は、出撃中のユニーク → 最後尾隊リーダー の順でフォールバック。
+  const ALLY_COMMANDER_ID = 'unit_hannibal'
+  const deployedIds = gameState.squads.flatMap(s => s.unitIds)
+  const isUnique = (id: string) => gameState.roster.find(u => u.id === id)?.kind === 'unique'
   const allyRear = gameState.squads.filter(s => s.unitIds.length > 0).slice(-1)[0]
-  const allyCmdId = allyRear?.unitIds[0]
+  const allyCmdId = (deployedIds.includes(ALLY_COMMANDER_ID) ? ALLY_COMMANDER_ID : undefined)
+    ?? deployedIds.find(isUnique)
+    ?? allyRear?.unitIds[0]
   if (allyCmdId && allyUnits[allyCmdId]) allyUnits[allyCmdId].isCommander = true
   const enemyRear = battleDef.enemies.squads.filter(s => s.unitIds.length > 0).slice(-1)[0]
   const enemyCmdId = enemyRear?.unitIds[0]
