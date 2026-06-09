@@ -3,9 +3,12 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import { fileURLToPath, URL } from 'node:url'
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
+  // GitHub Pages のプロジェクトページ（/formation-breaker/）で配信するため build 時のみ base を付与。
+  // dev はルート配信のまま（npm run dev を妨げない）。
+  base: command === 'build' ? '/formation-breaker/' : '/',
   // α15: 静的アセット（テーマ画像・アイコン）はリポジトリ直下 assets/ に置く。
-  // 中身は配信URL直下にマップされる（例 assets/themes/default/... → /themes/default/...）。
+  // 中身は base 配下に配信される（例 assets/themes/... → /formation-breaker/themes/...）。
   publicDir: fileURLToPath(new URL('../../assets', import.meta.url)),
   plugins: [
     react(),
@@ -21,8 +24,8 @@ export default defineConfig({
         background_color: '#0a0a14',
         display: 'standalone',
         orientation: 'any',
-        start_url: '/',
-        scope: '/',
+        start_url: '/formation-breaker/',
+        scope: '/formation-breaker/',
         icons: [
           { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
@@ -64,4 +67,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))

@@ -8,7 +8,8 @@ export const THEME_IDS: ThemeId[] = ['default', 'alt']
 export const THEME_LABEL: Record<ThemeId, string> = { default: '標準テーマ', alt: '代替テーマ' }
 export const DEFAULT_THEME: ThemeId = 'default'
 
-const ROOT = '/themes'
+// GitHub Pages のサブパス配信に対応（base 配下）。dev は '/'、build は '/formation-breaker/'。
+const ROOT = `${import.meta.env.BASE_URL}themes`
 
 // ── 顔グラ（128×128）。仕様の ユニットID→ファイル名 マッピング ──────────
 export interface FaceLike { id: string; side: 'ally' | 'enemy'; kind?: string; isCommander?: boolean }

@@ -64,7 +64,7 @@ export class PixiBattlefield {
     const terr = new Map<string, Texture>()
     await Promise.all(ALL_TERRAINS.map(async id => { const t = await tryLoad(terrainUrl(themeId, id)); if (t) terr.set(id, t) }))
     const units = new Map<string, Texture>()
-    await Promise.all(ALL_UNIT_SPRITES.map(async s => { const t = await tryLoad(`/themes/${themeId}/unit/${s}.png`); if (t) units.set(s, t) }))
+    await Promise.all(ALL_UNIT_SPRITES.map(async s => { const t = await tryLoad(`${import.meta.env.BASE_URL}themes/${themeId}/unit/${s}.png`); if (t) units.set(s, t) }))
     // 競合（連続切替）防止: 最新テーマのみ反映
     if (this.themeId !== themeId) return
     this.texTerrain = terr; this.texUnit = units
